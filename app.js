@@ -425,6 +425,10 @@ const App = {
       const scheduled = supps.filter(s => U.isScheduled(s, dateStr));
       const dayLog = await DB.getLogsForDate(dateStr);
 
+      const dateObj = U.parseDate(dateStr);
+      const isPast = dateObj < new Date(new Date().setHours(0,0,0,0));
+      const isToday = dateStr === U.today();
+
       let html = `<div class="cal-detail-date">${U.formatDisplay(dateStr)}</div>`;
 
       if (scheduled.length === 0) {
@@ -435,9 +439,16 @@ const App = {
           for (let i = 0; i < doses; i++) {
             const key = s.id + (doses > 1 ? '_' + i : '');
             const taken = dayLog[key]?.taken || false;
-            const badge = taken
-              ? '<span class="card-badge badge-green">Taken</span>'
-              : '<span class="card-badge badge-red">Missed</span>';
+            let badge;
+            if (taken) {
+              badge = '<span class="card-badge badge-green">Taken</span>';
+            } else if (isPast) {
+              badge = '<span class="card-badge badge-red">Missed</span>';
+            } else if (isToday) {
+              badge = '<span class="card-badge badge-yellow">Pending</span>';
+            } else {
+              badge = '<span class="card-badge badge-blue">Scheduled</span>';
+            }
             const doseLabel = doses > 1 ? ` (${U.doseLabels(s)[i]})` : '';
             html += `<div class="card" style="cursor:default">
               <div class="card-header">
