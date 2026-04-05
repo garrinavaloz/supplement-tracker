@@ -184,6 +184,33 @@ const U = {
       return { suppId: parts.join('_'), doseIndex };
     }
     return { suppId: key, doseIndex: 0 };
+  },
+  // Get the supplement's state as it was on a specific date
+  getStateAtDate(supp, dateStr) {
+    const targetDate = new Date(dateStr + 'T23:59:59');
+    const mods = supp.modifications || [];
+    // Find the latest modification AFTER the target date
+    // and use its snapshot (which represents the state BEFORE that change)
+    // We go through modifications in reverse to find the earliest one after the target
+    const sortedMods = mods.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Start with current state
+    let state = {
+      name: supp.name, type: supp.type, dosage: supp.dosage,
+      frequency: supp.frequency, timing: supp.timing, cycle: supp.cycle,
+      purpose: supp.purpose, active: supp.active
+    };
+
+    // Walk backwards through modifications: for each mod that happened AFTER the target date,
+    // roll back to the snapshot (the state before that change)
+    for (let i = sortedMods.length - 1; i >= 0; i--) {
+      const mod = sortedMods[i];
+      if (new Date(mod.date) > targetDate && mod.snapshot) {
+        state = { ...mod.snapshot };
+      }
+    }
+
+    return state;
   }
 };
 
@@ -582,7 +609,16 @@ const App = {
         if (old.purpose !== purpose) changes.push(`Purpose updated`);
 
         if (changes.length > 0) {
-          mods.push({ date: new Date().toISOString(), changes });
+          // Store a snapshot of the old state before this change
+          mods.push({
+            date: new Date().toISOString(),
+            changes,
+            snapshot: {
+              name: old.name, type: old.type, dosage: old.dosage,
+              frequency: old.frequency, timing: old.timing, cycle: old.cycle,
+              purpose: old.purpose, active: old.active
+            }
+          });
         }
 
         await DB.saveSupplement({ ...old, name, type, dosage, frequency, timing, cycle, purpose, active, modifications: mods });
@@ -610,12 +646,26 @@ const App = {
       await App.switchTab('supplements');
     },
 
+    _detailCalDate: null,
+    _detailSuppId: null,
+    _detailSelectedDate: null,
+    _detailLogs: null,
+
     async showDetail(id) {
+      this._detailSuppId = id;
+      this._detailCalDate = this._detailCalDate || new Date();
+      this._detailSelectedDate = null;
+      this._detailLogs = await DB.getAllLogs();
+
+      await this._renderDetail();
+    },
+
+    async _renderDetail() {
       await App.refreshSuppsCache();
-      const supp = App._suppsCache.find(s => s.id === id);
+      const supp = App._suppsCache.find(s => s.id === this._detailSuppId);
       if (!supp) return;
 
-      const logs = await DB.getAllLogs();
+      const logs = this._detailLogs;
       let totalDays = 0, takenDays = 0, currentStreak = 0;
 
       const start = U.parseDate(supp.startDate);
@@ -636,7 +686,6 @@ const App = {
       }
 
       // Calculate current streak (from today backwards)
-      currentStreak = 0;
       for (let d = new Date(today); d >= start; d.setDate(d.getDate() - 1)) {
         const ds = U.fmt(d);
         if (!U.isScheduled(supp, ds)) continue;
@@ -652,25 +701,13 @@ const App = {
 
       const consistency = totalDays > 0 ? Math.round((takenDays / totalDays) * 100) : 0;
 
-      // Mini calendar (last 35 days)
-      let miniCalHtml = '';
-      for (let i = 34; i >= 0; i--) {
-        const d = new Date(today); d.setDate(d.getDate() - i);
-        const ds = U.fmt(d);
-        let color = 'var(--bg-input)';
-        let textColor = 'var(--text-muted)';
-        if (U.isScheduled(supp, ds)) {
-          const doses = U.dosesPerDay(supp);
-          let allTaken = true;
-          for (let j = 0; j < doses; j++) {
-            const key = supp.id + (doses > 1 ? '_' + j : '');
-            if (!logs[ds]?.[key]?.taken) allTaken = false;
-          }
-          if (allTaken) { color = 'var(--accent-dim)'; textColor = 'var(--accent)'; }
-          else if (ds !== U.today()) { color = 'var(--danger-dim)'; textColor = 'var(--danger)'; }
-          else { color = 'var(--bg-input)'; textColor = 'var(--text)'; }
-        }
-        miniCalHtml += `<div class="mini-cal-day" style="background:${color};color:${textColor}">${d.getDate()}</div>`;
+      // Build full navigable calendar
+      const calHtml = this._buildDetailCalendar(supp, logs);
+
+      // Build selected day detail (historical)
+      let dayDetailHtml = '';
+      if (this._detailSelectedDate) {
+        dayDetailHtml = this._buildDayDetail(supp, this._detailSelectedDate, logs);
       }
 
       // Modifications log
@@ -686,6 +723,7 @@ const App = {
         modHtml = '<p class="text-muted">No modifications yet.</p>';
       }
 
+      // Current details section (always shows current state)
       const html = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
           <div class="supp-icon" style="background:var(--accent-dim);width:48px;height:48px;font-size:22px">
@@ -711,17 +749,23 @@ const App = {
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">Last 35 Days</div>
-          <div class="mini-calendar">${miniCalHtml}</div>
+          <div class="detail-section-title">History</div>
+          <div class="calendar-header">
+            <button class="btn-icon" onclick="App.Supplements.detailCalPrev()">&#8249;</button>
+            <h2 id="detail-cal-label" style="font-size:16px;font-weight:600;"></h2>
+            <button class="btn-icon" onclick="App.Supplements.detailCalNext()">&#8250;</button>
+          </div>
+          <div class="calendar-grid" id="detail-cal-grid"></div>
           <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-muted);">
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent-dim);display:inline-block"></span> Taken</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:var(--danger-dim);display:inline-block"></span> Missed</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:var(--bg-input);display:inline-block"></span> Off</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent-blue-dim);display:inline-block"></span> Scheduled</span>
           </div>
+          <div id="detail-day-info" class="mt-16">${dayDetailHtml}</div>
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">Details</div>
+          <div class="detail-section-title">Current Details</div>
           <div class="detail-row"><span class="detail-label">Frequency</span><span class="detail-value">${U.freqLabel(supp.frequency)}</span></div>
           <div class="detail-row"><span class="detail-label">Timing</span><span class="detail-value">${U.timingLabel(supp.timing)}</span></div>
           <div class="detail-row"><span class="detail-label">Cycle</span><span class="detail-value">${U.cycleLabel(supp.cycle)}</span></div>
@@ -741,7 +785,134 @@ const App = {
       `;
 
       document.getElementById('supplement-detail-content').innerHTML = html;
-      App.switchTab('supplement-detail');
+
+      // Render the calendar into its container
+      this._updateDetailCalendar(supp, logs);
+
+      // Only switch tab if we're not already on it (avoids re-scroll)
+      if (App.currentTab !== 'supplement-detail') {
+        App.switchTab('supplement-detail');
+      }
+    },
+
+    _buildDetailCalendar(supp, logs) {
+      // Called after DOM is built via _updateDetailCalendar
+    },
+
+    _updateDetailCalendar(supp, logs) {
+      const d = this._detailCalDate;
+      const year = d.getFullYear(), month = d.getMonth();
+      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      document.getElementById('detail-cal-label').textContent = label;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const todayStr = U.today();
+
+      let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+        .map(d => `<div class="cal-day-label">${d}</div>`).join('');
+
+      for (let i = 0; i < firstDay; i++) html += '<div class="cal-day empty"></div>';
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        let cls = 'cal-day';
+        if (dateStr === todayStr) cls += ' today';
+        if (dateStr === this._detailSelectedDate) cls += ' selected';
+
+        const dateObj = U.parseDate(dateStr);
+        const isPast = dateObj < new Date(new Date().setHours(0,0,0,0));
+        const isToday = dateStr === todayStr;
+
+        if (U.isScheduled(supp, dateStr)) {
+          if (isPast || isToday) {
+            const doses = U.dosesPerDay(supp);
+            let allTaken = true;
+            for (let i = 0; i < doses; i++) {
+              const key = supp.id + (doses > 1 ? '_' + i : '');
+              if (!logs[dateStr]?.[key]?.taken) allTaken = false;
+            }
+            if (allTaken) cls += ' perfect';
+            else if (isPast) cls += ' missed';
+          } else {
+            cls += ' scheduled';
+          }
+        }
+
+        html += `<div class="${cls}" onclick="App.Supplements.selectDetailDay('${dateStr}')">${day}</div>`;
+      }
+
+      document.getElementById('detail-cal-grid').innerHTML = html;
+    },
+
+    _buildDayDetail(supp, dateStr, logs) {
+      const dateObj = U.parseDate(dateStr);
+      const isPast = dateObj < new Date(new Date().setHours(0,0,0,0));
+      const isToday = dateStr === U.today();
+
+      // Get historical state at this date
+      const stateAtDate = U.getStateAtDate(supp, dateStr);
+      const wasScheduled = U.isScheduled(supp, dateStr);
+
+      let html = `<div class="cal-detail-date">${U.formatDisplay(dateStr)}</div>`;
+
+      if (!wasScheduled) {
+        html += '<p class="text-muted" style="font-size:13px;">Not scheduled on this day.</p>';
+        return html;
+      }
+
+      // Show status
+      if (isPast || isToday) {
+        const doses = U.dosesPerDay(supp);
+        let takenCount = 0;
+        for (let i = 0; i < doses; i++) {
+          const key = supp.id + (doses > 1 ? '_' + i : '');
+          if (logs[dateStr]?.[key]?.taken) takenCount++;
+        }
+        const badge = takenCount === doses
+          ? '<span class="card-badge badge-green">Taken</span>'
+          : takenCount > 0
+            ? '<span class="card-badge badge-yellow">Partial</span>'
+            : '<span class="card-badge badge-red">Missed</span>';
+        html += `<div style="margin-bottom:12px">${badge}</div>`;
+      } else {
+        html += '<div style="margin-bottom:12px"><span class="card-badge badge-blue">Scheduled</span></div>';
+      }
+
+      // Show details as they were on this date
+      html += `<div class="detail-section-title" style="margin-top:8px">Details on this date</div>`;
+      html += `<div class="detail-row"><span class="detail-label">Dosage</span><span class="detail-value">${stateAtDate.dosage}</span></div>`;
+      html += `<div class="detail-row"><span class="detail-label">Frequency</span><span class="detail-value">${U.freqLabel(stateAtDate.frequency)}</span></div>`;
+      html += `<div class="detail-row"><span class="detail-label">Timing</span><span class="detail-value">${U.timingLabel(stateAtDate.timing)}</span></div>`;
+      html += `<div class="detail-row"><span class="detail-label">Cycle</span><span class="detail-value">${U.cycleLabel(stateAtDate.cycle)}</span></div>`;
+      html += `<div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value" style="max-width:60%">${stateAtDate.purpose || '—'}</span></div>`;
+
+      return html;
+    },
+
+    selectDetailDay(dateStr) {
+      this._detailSelectedDate = dateStr;
+      const supp = App._suppsCache.find(s => s.id === this._detailSuppId);
+      if (!supp) return;
+
+      // Update calendar selection
+      this._updateDetailCalendar(supp, this._detailLogs);
+
+      // Update day detail
+      const dayDetailHtml = this._buildDayDetail(supp, dateStr, this._detailLogs);
+      document.getElementById('detail-day-info').innerHTML = dayDetailHtml;
+    },
+
+    detailCalPrev() {
+      this._detailCalDate.setMonth(this._detailCalDate.getMonth() - 1);
+      const supp = App._suppsCache.find(s => s.id === this._detailSuppId);
+      if (supp) this._updateDetailCalendar(supp, this._detailLogs);
+    },
+
+    detailCalNext() {
+      this._detailCalDate.setMonth(this._detailCalDate.getMonth() + 1);
+      const supp = App._suppsCache.find(s => s.id === this._detailSuppId);
+      if (supp) this._updateDetailCalendar(supp, this._detailLogs);
     }
   },
 
