@@ -12,17 +12,26 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="app">
+    <!-- Loading screen -->
+    <div id="loading-screen" style="display:flex;align-items:center;justify-content:center;height:100vh;">
+      <div style="text-align:center;">
+        <h1 class="logo" style="font-size:28px;margin-bottom:8px;">SupTrack</h1>
+        <p style="color:var(--text-muted);font-size:13px;">Loading your data...</p>
+      </div>
+    </div>
+
     <!-- Header -->
-    <header id="app-header">
+    <header id="app-header" style="display:none;">
       <h1 class="logo">SupTrack</h1>
       <span class="header-date" id="header-date"></span>
     </header>
 
     <!-- Views -->
-    <main id="main-content">
+    <main id="main-content" style="display:none;">
 
       <!-- TODAY VIEW -->
       <section id="view-today" class="view active">
@@ -88,7 +97,7 @@
     </main>
 
     <!-- Bottom Navigation -->
-    <nav id="bottom-nav">
+    <nav id="bottom-nav" style="display:none;">
       <button class="nav-btn active" data-tab="today" onclick="App.switchTab('today')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span>Today</span>

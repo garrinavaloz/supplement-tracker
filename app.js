@@ -1,20 +1,139 @@
-// ===== STORAGE LAYER =====
-const Store = {
-  get(key) { try { return JSON.parse(localStorage.getItem('suptrack_' + key)); } catch { return null; } },
-  set(key, val) { localStorage.setItem('suptrack_' + key, JSON.stringify(val)); },
-  getSupplements() { return this.get('supplements') || []; },
-  saveSupplements(s) { this.set('supplements', s); },
-  getLogs() { return this.get('logs') || {}; },
-  saveLogs(l) { this.set('logs', l); },
-  getMetrics() { return this.get('metrics') || []; },
-  saveMetrics(m) { this.set('metrics', m); },
+// ===== SUPABASE SETUP =====
+const SUPABASE_URL = 'https://elcyebukretkvlwiutcd.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3llYnVrcmV0a3Zsd2l1dGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5MjIsImV4cCI6MjA5MDk4NzkyMn0.upensdcqZOeK2-TXDc-SvIqXFhpXSNv-QsToBe5bS88';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ===== DATA LAYER =====
+const DB = {
+  // -- Supplements --
+  async getSupplements() {
+    const { data, error } = await supabase.from('supplements').select('*').order('created_at');
+    if (error) { console.error('getSupplements:', error); return []; }
+    // Map DB columns to JS camelCase
+    return data.map(r => ({
+      id: r.id, name: r.name, type: r.type, dosage: r.dosage,
+      frequency: r.frequency, timing: r.timing, cycle: r.cycle,
+      purpose: r.purpose, startDate: r.start_date, active: r.active,
+      modifications: r.modifications || []
+    }));
+  },
+
+  async saveSupplement(s) {
+    const row = {
+      id: s.id, name: s.name, type: s.type, dosage: s.dosage,
+      frequency: s.frequency, timing: s.timing, cycle: s.cycle,
+      purpose: s.purpose, start_date: s.startDate, active: s.active,
+      modifications: s.modifications || []
+    };
+    const { error } = await supabase.from('supplements').upsert(row);
+    if (error) console.error('saveSupplement:', error);
+  },
+
+  async deleteSupplement(id) {
+    await supabase.from('daily_logs').delete().eq('supplement_id', id);
+    const { error } = await supabase.from('supplements').delete().eq('id', id);
+    if (error) console.error('deleteSupplement:', error);
+  },
+
+  // -- Daily Logs --
+  async getLogsForDate(dateStr) {
+    const { data, error } = await supabase.from('daily_logs').select('*').eq('date', dateStr);
+    if (error) { console.error('getLogsForDate:', error); return {}; }
+    const logs = {};
+    data.forEach(r => {
+      const key = r.supplement_id + (r.dose_index > 0 ? '_' + r.dose_index : '');
+      logs[key] = { taken: r.taken, time: r.taken_at };
+    });
+    return logs;
+  },
+
+  async getLogsForRange(startDate, endDate) {
+    const { data, error } = await supabase.from('daily_logs').select('*')
+      .gte('date', startDate).lte('date', endDate);
+    if (error) { console.error('getLogsForRange:', error); return {}; }
+    const logs = {};
+    data.forEach(r => {
+      if (!logs[r.date]) logs[r.date] = {};
+      const key = r.supplement_id + (r.dose_index > 0 ? '_' + r.dose_index : '');
+      logs[r.date][key] = { taken: r.taken, time: r.taken_at };
+    });
+    return logs;
+  },
+
+  async getAllLogs() {
+    const { data, error } = await supabase.from('daily_logs').select('*');
+    if (error) { console.error('getAllLogs:', error); return {}; }
+    const logs = {};
+    data.forEach(r => {
+      if (!logs[r.date]) logs[r.date] = {};
+      const key = r.supplement_id + (r.dose_index > 0 ? '_' + r.dose_index : '');
+      logs[r.date][key] = { taken: r.taken, time: r.taken_at };
+    });
+    return logs;
+  },
+
+  async toggleLog(dateStr, supplementId, doseIndex, taken) {
+    const { error } = await supabase.from('daily_logs').upsert({
+      date: dateStr,
+      supplement_id: supplementId,
+      dose_index: doseIndex,
+      taken: taken,
+      taken_at: taken ? new Date().toISOString() : null
+    }, { onConflict: 'date,supplement_id,dose_index' });
+    if (error) console.error('toggleLog:', error);
+  },
+
+  // -- Health Metrics --
+  async getMetrics() {
+    const { data, error } = await supabase.from('health_metrics').select('*').order('created_at');
+    if (error) { console.error('getMetrics:', error); return []; }
+    return data.map(r => ({
+      id: r.id, name: r.name, unit: r.unit,
+      linkedSupplements: r.linked_supplements || []
+    }));
+  },
+
+  async getMetricWithEntries(metricId) {
+    const { data: metric } = await supabase.from('health_metrics').select('*').eq('id', metricId).single();
+    const { data: entries } = await supabase.from('metric_entries').select('*')
+      .eq('metric_id', metricId).order('date');
+    return {
+      id: metric.id, name: metric.name, unit: metric.unit,
+      linkedSupplements: metric.linked_supplements || [],
+      entries: (entries || []).map(e => ({ date: e.date, method: e.method, value: Number(e.value), unit: e.unit }))
+    };
+  },
+
+  async saveMetric(m) {
+    const row = { id: m.id, name: m.name, unit: m.unit, linked_supplements: m.linkedSupplements || [] };
+    const { error } = await supabase.from('health_metrics').upsert(row);
+    if (error) console.error('saveMetric:', error);
+  },
+
+  async deleteMetric(id) {
+    const { error } = await supabase.from('health_metrics').delete().eq('id', id);
+    if (error) console.error('deleteMetric:', error);
+  },
+
+  async addMetricEntry(metricId, entry) {
+    const { error } = await supabase.from('metric_entries').insert({
+      metric_id: metricId, date: entry.date, method: entry.method,
+      value: entry.value, unit: entry.unit
+    });
+    if (error) console.error('addMetricEntry:', error);
+  }
 };
 
 // ===== UTILITIES =====
 const U = {
   id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
   today() { return this.fmt(new Date()); },
-  fmt(d) { return d.toISOString().split('T')[0]; },
+  fmt(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  },
   parseDate(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); },
   daysBetween(a, b) { return Math.floor((b - a) / 86400000); },
   formatDisplay(dateStr) {
@@ -37,34 +156,34 @@ const U = {
     if (!c || c.type === 'continuous') return 'Continuous';
     return `${c.onDays} days on / ${c.offDays} days off`;
   },
-  // Check if a supplement is scheduled on a given date
   isScheduled(supp, dateStr) {
     const start = this.parseDate(supp.startDate);
     const date = this.parseDate(dateStr);
     if (date < start) return false;
     if (!supp.active) return false;
-
-    // Check cycle
     if (supp.cycle && supp.cycle.type === 'cycle') {
       const totalCycle = supp.cycle.onDays + supp.cycle.offDays;
       const dayNum = this.daysBetween(start, date) % totalCycle;
       if (dayNum >= supp.cycle.onDays) return false;
     }
-
-    // Check frequency
     if (supp.frequency === 'once_weekly') {
       return date.getDay() === start.getDay();
     }
-
     return true;
   },
-  // How many doses per day
-  dosesPerDay(supp) {
-    return supp.frequency === 'twice_daily' ? 2 : 1;
-  },
+  dosesPerDay(supp) { return supp.frequency === 'twice_daily' ? 2 : 1; },
   doseLabels(supp) {
     if (supp.frequency === 'twice_daily') return ['Morning', 'Evening'];
     return [''];
+  },
+  // Parse supplement ID and dose index from a log key
+  parseKey(key) {
+    const parts = key.split('_');
+    if (parts.length > 1) {
+      const doseIndex = parseInt(parts.pop());
+      return { suppId: parts.join('_'), doseIndex };
+    }
+    return { suppId: key, doseIndex: 0 };
   }
 };
 
@@ -72,11 +191,20 @@ const U = {
 const App = {
   currentTab: 'today',
   calendarDate: new Date(),
+  _suppsCache: null,
 
-  init() {
+  async init() {
+    // Preload supplements into cache
+    this._suppsCache = await DB.getSupplements();
+
+    // Hide loading, show app
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('app-header').style.display = '';
+    document.getElementById('main-content').style.display = '';
+    document.getElementById('bottom-nav').style.display = '';
+
     this.renderHeaderDate();
-    this.switchTab('today');
-    this.endOfDayCheck();
+    await this.switchTab('today');
   },
 
   renderHeaderDate() {
@@ -85,8 +213,7 @@ const App = {
       d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   },
 
-  switchTab(tab) {
-    // Special views that shouldn't update nav
+  async switchTab(tab) {
     const isSubView = tab === 'supplement-detail' || tab === 'metric-detail';
     this.currentTab = tab;
 
@@ -99,11 +226,10 @@ const App = {
       });
     }
 
-    // Render the view
-    if (tab === 'today') this.Today.render();
-    else if (tab === 'calendar') this.Calendar.render();
-    else if (tab === 'supplements') this.Supplements.render();
-    else if (tab === 'metrics') this.Metrics.render();
+    if (tab === 'today') await this.Today.render();
+    else if (tab === 'calendar') await this.Calendar.render();
+    else if (tab === 'supplements') await this.Supplements.render();
+    else if (tab === 'metrics') await this.Metrics.render();
   },
 
   openModal(title, bodyHtml) {
@@ -118,34 +244,15 @@ const App = {
     document.getElementById('modal').classList.remove('active');
   },
 
-  // Check for end of day - mark unlogged items as missed
-  endOfDayCheck() {
-    const logs = Store.getLogs();
-    const supps = Store.getSupplements();
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = U.fmt(yesterday);
-
-    if (!logs[yStr]) {
-      // Backfill yesterday if no log exists
-      const scheduled = supps.filter(s => U.isScheduled(s, yStr));
-      if (scheduled.length > 0) {
-        logs[yStr] = {};
-        scheduled.forEach(s => {
-          const doses = U.dosesPerDay(s);
-          for (let i = 0; i < doses; i++) {
-            const key = s.id + (doses > 1 ? '_' + i : '');
-            if (!logs[yStr][key]) logs[yStr][key] = { taken: false };
-          }
-        });
-        Store.saveLogs(logs);
-      }
-    }
+  async refreshSuppsCache() {
+    this._suppsCache = await DB.getSupplements();
   },
 
   // ===== TODAY VIEW =====
   Today: {
-    render() {
-      const supps = Store.getSupplements();
+    async render() {
+      await App.refreshSuppsCache();
+      const supps = App._suppsCache;
       const todayStr = U.today();
       const scheduled = supps.filter(s => U.isScheduled(s, todayStr));
       const container = document.getElementById('today-list');
@@ -159,20 +266,17 @@ const App = {
       }
       empty.style.display = 'none';
 
-      // Get logs
-      const logs = Store.getLogs();
-      if (!logs[todayStr]) logs[todayStr] = {};
+      const logs = await DB.getLogsForDate(todayStr);
 
-      // Build items grouped by timing
       const groups = { pre_workout: [], water_soluble: [], fat_soluble: [], post_workout: [] };
 
       scheduled.forEach(s => {
         const doses = U.dosesPerDay(s);
         for (let i = 0; i < doses; i++) {
           const key = s.id + (doses > 1 ? '_' + i : '');
-          const taken = logs[todayStr][key]?.taken || false;
+          const taken = logs[key]?.taken || false;
           const doseLabel = doses > 1 ? U.doseLabels(s)[i] : '';
-          groups[s.timing].push({ supp: s, key, taken, doseLabel });
+          groups[s.timing].push({ supp: s, key, taken, doseLabel, doseIndex: i });
         }
       });
 
@@ -192,7 +296,7 @@ const App = {
           const doseInfo = item.doseLabel ? ` · ${item.doseLabel}` : '';
 
           html += `<div class="today-item ${takenClass}" id="today-${item.key}">
-            <button class="check-btn ${checkedClass}" onclick="App.Today.toggle('${item.key}')">
+            <button class="check-btn ${checkedClass}" onclick="App.Today.toggle('${item.supp.id}', ${item.doseIndex}, ${item.taken})">
               ${item.taken ? '✓' : ''}
             </button>
             <div class="today-item-info">
@@ -206,20 +310,15 @@ const App = {
 
       container.innerHTML = html;
 
-      // Progress
       const pct = totalDoses > 0 ? Math.round((takenDoses / totalDoses) * 100) : 0;
       document.getElementById('today-progress').innerHTML =
         `<span class="progress-text" style="color: ${pct === 100 ? 'var(--accent)' : 'var(--text)'}">${pct}%</span>`;
     },
 
-    toggle(key) {
+    async toggle(suppId, doseIndex, currentlyTaken) {
       const todayStr = U.today();
-      const logs = Store.getLogs();
-      if (!logs[todayStr]) logs[todayStr] = {};
-      const current = logs[todayStr][key]?.taken || false;
-      logs[todayStr][key] = { taken: !current, time: new Date().toISOString() };
-      Store.saveLogs(logs);
-      this.render();
+      await DB.toggleLog(todayStr, suppId, doseIndex, !currentlyTaken);
+      await this.render();
     }
   },
 
@@ -227,7 +326,7 @@ const App = {
   Calendar: {
     selectedDate: null,
 
-    render() {
+    async render() {
       const d = App.calendarDate;
       const year = d.getFullYear(), month = d.getMonth();
       document.getElementById('calendar-month-label').textContent =
@@ -236,8 +335,14 @@ const App = {
       const firstDay = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const todayStr = U.today();
-      const supps = Store.getSupplements();
-      const logs = Store.getLogs();
+
+      await App.refreshSuppsCache();
+      const supps = App._suppsCache;
+
+      // Fetch logs for the entire month
+      const startDate = `${year}-${String(month+1).padStart(2,'0')}-01`;
+      const endDate = `${year}-${String(month+1).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+      const logs = await DB.getLogsForRange(startDate, endDate);
 
       let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
         .map(d => `<div class="cal-day-label">${d}</div>`).join('');
@@ -250,7 +355,6 @@ const App = {
         if (dateStr === todayStr) cls += ' today';
         if (dateStr === this.selectedDate) cls += ' selected';
 
-        // Determine day status
         const dateObj = U.parseDate(dateStr);
         if (dateObj <= new Date()) {
           const scheduled = supps.filter(s => U.isScheduled(s, dateStr));
@@ -276,19 +380,18 @@ const App = {
       }
 
       document.getElementById('calendar-grid').innerHTML = html;
-      if (this.selectedDate) this.renderDayDetail(this.selectedDate);
+      if (this.selectedDate) await this.renderDayDetail(this.selectedDate);
     },
 
-    selectDay(dateStr) {
+    async selectDay(dateStr) {
       this.selectedDate = dateStr;
-      this.render();
+      await this.render();
     },
 
-    renderDayDetail(dateStr) {
-      const supps = Store.getSupplements();
-      const logs = Store.getLogs();
+    async renderDayDetail(dateStr) {
+      const supps = App._suppsCache;
       const scheduled = supps.filter(s => U.isScheduled(s, dateStr));
-      const dayLog = logs[dateStr] || {};
+      const dayLog = await DB.getLogsForDate(dateStr);
 
       let html = `<div class="cal-detail-date">${U.formatDisplay(dateStr)}</div>`;
 
@@ -323,8 +426,9 @@ const App = {
 
   // ===== SUPPLEMENTS VIEW =====
   Supplements: {
-    render() {
-      const supps = Store.getSupplements();
+    async render() {
+      await App.refreshSuppsCache();
+      const supps = App._suppsCache;
       const container = document.getElementById('supplements-list');
       const empty = document.getElementById('supplements-empty');
 
@@ -358,7 +462,7 @@ const App = {
 
     openAddModal(editId) {
       const isEdit = !!editId;
-      const supp = isEdit ? Store.getSupplements().find(s => s.id === editId) : null;
+      const supp = isEdit ? App._suppsCache.find(s => s.id === editId) : null;
 
       const html = `
         <div class="form-group">
@@ -440,7 +544,7 @@ const App = {
       document.getElementById('cycle-fields').style.display = type === 'cycle' ? 'grid' : 'none';
     },
 
-    save(editId) {
+    async save(editId) {
       const name = document.getElementById('f-name').value.trim();
       const type = document.getElementById('f-type').value;
       const dosage = document.getElementById('f-dosage').value.trim();
@@ -455,15 +559,11 @@ const App = {
         ? { type: 'cycle', onDays: parseInt(document.getElementById('f-cycle-on').value) || 14, offDays: parseInt(document.getElementById('f-cycle-off').value) || 7 }
         : { type: 'continuous' };
 
-      const supps = Store.getSupplements();
-
       if (editId) {
-        const idx = supps.findIndex(s => s.id === editId);
-        if (idx === -1) return;
-        const old = supps[idx];
+        const old = App._suppsCache.find(s => s.id === editId);
+        if (!old) return;
         const active = document.getElementById('f-active').value === 'true';
 
-        // Track modifications
         const mods = old.modifications || [];
         const changes = [];
         if (old.name !== name) changes.push(`Name: ${old.name} → ${name}`);
@@ -479,40 +579,43 @@ const App = {
           mods.push({ date: new Date().toISOString(), changes });
         }
 
-        supps[idx] = { ...old, name, type, dosage, frequency, timing, cycle, purpose, active, modifications: mods };
+        await DB.saveSupplement({ ...old, name, type, dosage, frequency, timing, cycle, purpose, active, modifications: mods });
       } else {
-        supps.push({ id: U.id(), name, type, dosage, frequency, timing, cycle, purpose, startDate: U.today(), active: true, modifications: [] });
+        await DB.saveSupplement({
+          id: U.id(), name, type, dosage, frequency, timing, cycle, purpose,
+          startDate: U.today(), active: true, modifications: []
+        });
       }
 
-      Store.saveSupplements(supps);
       App.closeModal();
+      await App.refreshSuppsCache();
 
       if (editId) {
-        this.showDetail(editId);
+        await this.showDetail(editId);
       } else {
-        this.render();
+        await this.render();
       }
     },
 
-    remove(id) {
+    async remove(id) {
       if (!confirm('Delete this supplement and all its logs?')) return;
-      const supps = Store.getSupplements().filter(s => s.id !== id);
-      Store.saveSupplements(supps);
+      await DB.deleteSupplement(id);
       App.closeModal();
-      App.switchTab('supplements');
+      await App.switchTab('supplements');
     },
 
-    showDetail(id) {
-      const supp = Store.getSupplements().find(s => s.id === id);
+    async showDetail(id) {
+      await App.refreshSuppsCache();
+      const supp = App._suppsCache.find(s => s.id === id);
       if (!supp) return;
 
-      // Calculate consistency
-      const logs = Store.getLogs();
-      let totalDays = 0, takenDays = 0, currentStreak = 0, streakBroken = false;
+      const logs = await DB.getAllLogs();
+      let totalDays = 0, takenDays = 0, currentStreak = 0;
 
       const start = U.parseDate(supp.startDate);
       const today = new Date(); today.setHours(0,0,0,0);
 
+      // Calculate consistency
       for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
         const ds = U.fmt(d);
         if (!U.isScheduled(supp, ds)) continue;
@@ -523,16 +626,10 @@ const App = {
           const key = supp.id + (doses > 1 ? '_' + i : '');
           if (!logs[ds]?.[key]?.taken) allTaken = false;
         }
-        if (allTaken) {
-          takenDays++;
-          if (!streakBroken) currentStreak++;
-        } else {
-          if (ds !== U.today()) streakBroken = true;
-          if (streakBroken) currentStreak = 0;
-        }
+        if (allTaken) takenDays++;
       }
 
-      // Reverse streak calculation (from today backwards)
+      // Calculate current streak (from today backwards)
       currentStreak = 0;
       for (let d = new Date(today); d >= start; d.setDate(d.getDate() - 1)) {
         const ds = U.fmt(d);
@@ -549,7 +646,7 @@ const App = {
 
       const consistency = totalDays > 0 ? Math.round((takenDays / totalDays) * 100) : 0;
 
-      // Build mini calendar (last 35 days)
+      // Mini calendar (last 35 days)
       let miniCalHtml = '';
       for (let i = 34; i >= 0; i--) {
         const d = new Date(today); d.setDate(d.getDate() - i);
@@ -646,8 +743,8 @@ const App = {
   Metrics: {
     chartInstances: {},
 
-    render() {
-      const metrics = Store.getMetrics();
+    async render() {
+      const metrics = await DB.getMetrics();
       const container = document.getElementById('metrics-list');
       const empty = document.getElementById('metrics-empty');
 
@@ -658,21 +755,34 @@ const App = {
       }
       empty.style.display = 'none';
 
-      container.innerHTML = metrics.map(m => {
-        const latest = m.entries.length > 0 ? m.entries[m.entries.length - 1] : null;
-        return `<div class="card metric-card" onclick="App.Metrics.showDetail('${m.id}')">
+      // Fetch entry counts
+      let html = '';
+      for (const m of metrics) {
+        const full = await DB.getMetricWithEntries(m.id);
+        const latest = full.entries.length > 0 ? full.entries[full.entries.length - 1] : null;
+        html += `<div class="card metric-card" onclick="App.Metrics.showDetail('${m.id}')">
           <div class="card-header">
             <span class="card-title">${m.name}</span>
-            <span class="card-badge badge-blue">${m.entries.length} entries</span>
+            <span class="card-badge badge-blue">${full.entries.length} entries</span>
           </div>
           <div class="card-subtitle">${latest ? `Latest: ${latest.value} ${latest.unit || ''} (${U.formatDisplay(latest.date)})` : 'No entries yet'}</div>
         </div>`;
-      }).join('');
+      }
+      container.innerHTML = html;
     },
 
     openAddModal(editId) {
       const isEdit = !!editId;
-      const metric = isEdit ? Store.getMetrics().find(m => m.id === editId) : null;
+      // For edit, we need the metric from cache — load it async
+      this._openAddModalInner(editId, isEdit);
+    },
+
+    async _openAddModalInner(editId, isEdit) {
+      let metric = null;
+      if (isEdit) {
+        metric = await DB.getMetricWithEntries(editId);
+      }
+      await App.refreshSuppsCache();
 
       const html = `
         <div class="form-group">
@@ -686,7 +796,7 @@ const App = {
         <div class="form-group">
           <label class="form-label">Link to Supplements (optional)</label>
           <div class="checkbox-group" id="f-metric-supps">
-            ${Store.getSupplements().map(s => {
+            ${App._suppsCache.map(s => {
               const sel = metric?.linkedSupplements?.includes(s.id) ? 'selected' : '';
               return `<div class="checkbox-option ${sel}" data-id="${s.id}" onclick="this.classList.toggle('selected')">${s.name}</div>`;
             }).join('')}
@@ -704,7 +814,7 @@ const App = {
       App.openModal(isEdit ? 'Edit Metric' : 'New Health Metric', html);
     },
 
-    saveMetric(editId) {
+    async saveMetric(editId) {
       const name = document.getElementById('f-metric-name').value.trim();
       const unit = document.getElementById('f-metric-unit').value.trim();
       if (!name) { alert('Please enter a metric name.'); return; }
@@ -712,28 +822,18 @@ const App = {
       const linkedSupplements = Array.from(document.querySelectorAll('#f-metric-supps .selected'))
         .map(el => el.dataset.id);
 
-      const metrics = Store.getMetrics();
-      if (editId) {
-        const idx = metrics.findIndex(m => m.id === editId);
-        if (idx !== -1) {
-          metrics[idx].name = name;
-          metrics[idx].unit = unit;
-          metrics[idx].linkedSupplements = linkedSupplements;
-        }
-      } else {
-        metrics.push({ id: U.id(), name, unit, linkedSupplements, entries: [] });
-      }
+      const id = editId || U.id();
+      await DB.saveMetric({ id, name, unit, linkedSupplements });
 
-      Store.saveMetrics(metrics);
       App.closeModal();
-      this.render();
+      await this.render();
     },
 
-    removeMetric(id) {
+    async removeMetric(id) {
       if (!confirm('Delete this metric and all its data?')) return;
-      Store.saveMetrics(Store.getMetrics().filter(m => m.id !== id));
+      await DB.deleteMetric(id);
       App.closeModal();
-      App.switchTab('metrics');
+      await App.switchTab('metrics');
     },
 
     openAddEntry(metricId) {
@@ -758,31 +858,26 @@ const App = {
       App.openModal('Log Measurement', html);
     },
 
-    saveEntry(metricId) {
+    async saveEntry(metricId) {
       const date = document.getElementById('f-entry-date').value;
       const method = document.getElementById('f-entry-method').value.trim();
       const value = parseFloat(document.getElementById('f-entry-value').value);
 
       if (!date || isNaN(value)) { alert('Please enter a date and value.'); return; }
 
-      const metrics = Store.getMetrics();
-      const metric = metrics.find(m => m.id === metricId);
-      if (!metric) return;
+      const metric = await DB.getMetricWithEntries(metricId);
+      await DB.addMetricEntry(metricId, { date, method, value, unit: metric.unit });
 
-      metric.entries.push({ date, method, value, unit: metric.unit });
-      metric.entries.sort((a, b) => a.date.localeCompare(b.date));
-
-      Store.saveMetrics(metrics);
       App.closeModal();
-      this.showDetail(metricId);
+      await this.showDetail(metricId);
     },
 
-    showDetail(metricId) {
-      const metric = Store.getMetrics().find(m => m.id === metricId);
+    async showDetail(metricId) {
+      const metric = await DB.getMetricWithEntries(metricId);
       if (!metric) return;
 
-      const supps = Store.getSupplements();
-      const linked = supps.filter(s => metric.linkedSupplements?.includes(s.id));
+      await App.refreshSuppsCache();
+      const linked = App._suppsCache.filter(s => metric.linkedSupplements?.includes(s.id));
 
       let entriesHtml = '';
       if (metric.entries.length > 0) {
@@ -828,7 +923,6 @@ const App = {
       document.getElementById('metric-detail-content').innerHTML = html;
       App.switchTab('metric-detail');
 
-      // Render chart after DOM update
       if (metric.entries.length >= 2) {
         setTimeout(() => this.renderChart(metric, linked), 100);
       }
@@ -838,7 +932,6 @@ const App = {
       const canvas = document.getElementById('metric-chart');
       if (!canvas) return;
 
-      // Destroy existing chart
       if (this.chartInstances[metric.id]) {
         this.chartInstances[metric.id].destroy();
       }
@@ -856,12 +949,6 @@ const App = {
         pointRadius: 4,
         pointBackgroundColor: '#60a5fa',
       }];
-
-      // Add supplement start markers as annotations
-      const annotations = linkedSupps.map(s => ({
-        label: s.name,
-        startDate: s.startDate
-      }));
 
       this.chartInstances[metric.id] = new Chart(canvas, {
         type: 'line',
