@@ -1,13 +1,13 @@
 // ===== SUPABASE SETUP =====
 const SUPABASE_URL = 'https://elcyebukretkvlwiutcd.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3llYnVrcmV0a3Zsd2l1dGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5MjIsImV4cCI6MjA5MDk4NzkyMn0.upensdcqZOeK2-TXDc-SvIqXFhpXSNv-QsToBe5bS88';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== DATA LAYER =====
 const DB = {
   // -- Supplements --
   async getSupplements() {
-    const { data, error } = await supabase.from('supplements').select('*').order('created_at');
+    const { data, error } = await sb.from('supplements').select('*').order('created_at');
     if (error) { console.error('getSupplements:', error); return []; }
     // Map DB columns to JS camelCase
     return data.map(r => ({
@@ -25,19 +25,19 @@ const DB = {
       purpose: s.purpose, start_date: s.startDate, active: s.active,
       modifications: s.modifications || []
     };
-    const { error } = await supabase.from('supplements').upsert(row);
+    const { error } = await sb.from('supplements').upsert(row);
     if (error) console.error('saveSupplement:', error);
   },
 
   async deleteSupplement(id) {
-    await supabase.from('daily_logs').delete().eq('supplement_id', id);
-    const { error } = await supabase.from('supplements').delete().eq('id', id);
+    await sb.from('daily_logs').delete().eq('supplement_id', id);
+    const { error } = await sb.from('supplements').delete().eq('id', id);
     if (error) console.error('deleteSupplement:', error);
   },
 
   // -- Daily Logs --
   async getLogsForDate(dateStr) {
-    const { data, error } = await supabase.from('daily_logs').select('*').eq('date', dateStr);
+    const { data, error } = await sb.from('daily_logs').select('*').eq('date', dateStr);
     if (error) { console.error('getLogsForDate:', error); return {}; }
     const logs = {};
     data.forEach(r => {
@@ -48,7 +48,7 @@ const DB = {
   },
 
   async getLogsForRange(startDate, endDate) {
-    const { data, error } = await supabase.from('daily_logs').select('*')
+    const { data, error } = await sb.from('daily_logs').select('*')
       .gte('date', startDate).lte('date', endDate);
     if (error) { console.error('getLogsForRange:', error); return {}; }
     const logs = {};
@@ -61,7 +61,7 @@ const DB = {
   },
 
   async getAllLogs() {
-    const { data, error } = await supabase.from('daily_logs').select('*');
+    const { data, error } = await sb.from('daily_logs').select('*');
     if (error) { console.error('getAllLogs:', error); return {}; }
     const logs = {};
     data.forEach(r => {
@@ -73,7 +73,7 @@ const DB = {
   },
 
   async toggleLog(dateStr, supplementId, doseIndex, taken) {
-    const { error } = await supabase.from('daily_logs').upsert({
+    const { error } = await sb.from('daily_logs').upsert({
       date: dateStr,
       supplement_id: supplementId,
       dose_index: doseIndex,
@@ -85,7 +85,7 @@ const DB = {
 
   // -- Health Metrics --
   async getMetrics() {
-    const { data, error } = await supabase.from('health_metrics').select('*').order('created_at');
+    const { data, error } = await sb.from('health_metrics').select('*').order('created_at');
     if (error) { console.error('getMetrics:', error); return []; }
     return data.map(r => ({
       id: r.id, name: r.name, unit: r.unit,
@@ -94,8 +94,8 @@ const DB = {
   },
 
   async getMetricWithEntries(metricId) {
-    const { data: metric } = await supabase.from('health_metrics').select('*').eq('id', metricId).single();
-    const { data: entries } = await supabase.from('metric_entries').select('*')
+    const { data: metric } = await sb.from('health_metrics').select('*').eq('id', metricId).single();
+    const { data: entries } = await sb.from('metric_entries').select('*')
       .eq('metric_id', metricId).order('date');
     return {
       id: metric.id, name: metric.name, unit: metric.unit,
@@ -106,17 +106,17 @@ const DB = {
 
   async saveMetric(m) {
     const row = { id: m.id, name: m.name, unit: m.unit, linked_supplements: m.linkedSupplements || [] };
-    const { error } = await supabase.from('health_metrics').upsert(row);
+    const { error } = await sb.from('health_metrics').upsert(row);
     if (error) console.error('saveMetric:', error);
   },
 
   async deleteMetric(id) {
-    const { error } = await supabase.from('health_metrics').delete().eq('id', id);
+    const { error } = await sb.from('health_metrics').delete().eq('id', id);
     if (error) console.error('deleteMetric:', error);
   },
 
   async addMetricEntry(metricId, entry) {
-    const { error } = await supabase.from('metric_entries').insert({
+    const { error } = await sb.from('metric_entries').insert({
       metric_id: metricId, date: entry.date, method: entry.method,
       value: entry.value, unit: entry.unit
     });
