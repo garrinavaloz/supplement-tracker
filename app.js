@@ -162,8 +162,9 @@ const U = {
     if (date < start) return false;
     if (!supp.active) return false;
     if (supp.cycle && supp.cycle.type === 'cycle') {
+      const cycleStart = supp.cycle.startDate ? this.parseDate(supp.cycle.startDate) : start;
       const totalCycle = supp.cycle.onDays + supp.cycle.offDays;
-      const dayNum = this.daysBetween(start, date) % totalCycle;
+      const dayNum = ((this.daysBetween(cycleStart, date) % totalCycle) + totalCycle) % totalCycle;
       if (dayNum >= supp.cycle.onDays) return false;
     }
     if (supp.frequency === 'once_weekly') {
@@ -558,6 +559,11 @@ const App = {
             <label class="form-label">Days Off</label>
             <input class="form-input" id="f-cycle-off" type="number" min="1" value="${supp?.cycle?.offDays || 7}">
           </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Cycle Start Date</label>
+            <input class="form-input" id="f-cycle-start" type="date" value="${supp?.cycle?.startDate || U.today()}">
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">When did (or will) your current on-cycle begin?</p>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Purpose</label>
@@ -600,7 +606,7 @@ const App = {
       if (!name || !type || !dosage) { alert('Please fill in name, type, and dosage.'); return; }
 
       const cycle = cycleType === 'cycle'
-        ? { type: 'cycle', onDays: parseInt(document.getElementById('f-cycle-on').value) || 14, offDays: parseInt(document.getElementById('f-cycle-off').value) || 7 }
+        ? { type: 'cycle', onDays: parseInt(document.getElementById('f-cycle-on').value) || 14, offDays: parseInt(document.getElementById('f-cycle-off').value) || 7, startDate: document.getElementById('f-cycle-start').value || U.today() }
         : { type: 'continuous' };
 
       if (editId) {
