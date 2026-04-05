@@ -216,6 +216,7 @@ html, body {
 .cal-day.perfect { background: var(--accent-dim); color: var(--accent); }
 .cal-day.partial { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
 .cal-day.missed { background: var(--danger-dim); color: var(--danger); }
+.cal-day.scheduled { background: var(--accent-blue-dim); color: var(--accent-blue); }
 .cal-day.off-cycle { color: var(--text-muted); }
 
 .calendar-detail { min-height: 100px; }

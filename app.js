@@ -141,11 +141,11 @@ const U = {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   },
   timingLabel(t) {
-    const m = { water_soluble: 'With Water', fat_soluble: 'With Fatty Meal', pre_workout: 'Pre-Workout', post_workout: 'Post-Workout' };
+    const m = { water_soluble: 'With Water', fat_soluble: 'With Fatty Meal', pre_workout: 'Pre-Workout', post_workout: 'Post-Workout', before_bed: 'Before Bed' };
     return m[t] || t;
   },
   timingIcon(t) {
-    const m = { water_soluble: '💧', fat_soluble: '🥑', pre_workout: '⚡', post_workout: '🏋️' };
+    const m = { water_soluble: '💧', fat_soluble: '🥑', pre_workout: '⚡', post_workout: '🏋️', before_bed: '🌙' };
     return m[t] || '💊';
   },
   freqLabel(f) {
@@ -268,7 +268,7 @@ const App = {
 
       const logs = await DB.getLogsForDate(todayStr);
 
-      const groups = { pre_workout: [], water_soluble: [], fat_soluble: [], post_workout: [] };
+      const groups = { pre_workout: [], water_soluble: [], fat_soluble: [], post_workout: [], before_bed: [] };
 
       scheduled.forEach(s => {
         const doses = U.dosesPerDay(s);
@@ -356,24 +356,29 @@ const App = {
         if (dateStr === this.selectedDate) cls += ' selected';
 
         const dateObj = U.parseDate(dateStr);
-        if (dateObj <= new Date()) {
-          const scheduled = supps.filter(s => U.isScheduled(s, dateStr));
-          if (scheduled.length > 0 && logs[dateStr]) {
+        const isPast = dateObj < new Date(new Date().setHours(0,0,0,0));
+        const isToday = dateStr === todayStr;
+
+        const scheduled = supps.filter(s => U.isScheduled(s, dateStr));
+        if (scheduled.length > 0) {
+          if (isPast || isToday) {
             let total = 0, taken = 0;
             scheduled.forEach(s => {
               const doses = U.dosesPerDay(s);
               for (let i = 0; i < doses; i++) {
                 total++;
                 const key = s.id + (doses > 1 ? '_' + i : '');
-                if (logs[dateStr][key]?.taken) taken++;
+                if (logs[dateStr]?.[key]?.taken) taken++;
               }
             });
-            if (taken === total) cls += ' perfect';
+            if (taken === total && taken > 0) cls += ' perfect';
             else if (taken > 0) cls += ' partial';
-            else cls += ' missed';
-          } else if (scheduled.length === 0) {
-            cls += ' off-cycle';
+            else if (isPast) cls += ' missed';
+          } else {
+            cls += ' scheduled';
           }
+        } else if (isPast || isToday) {
+          cls += ' off-cycle';
         }
 
         html += `<div class="${cls}" onclick="App.Calendar.selectDay('${dateStr}')">${day}</div>`;
@@ -496,6 +501,7 @@ const App = {
             <option value="fat_soluble" ${supp?.timing==='fat_soluble'?'selected':''}>🥑 Fat Soluble (with fatty meal)</option>
             <option value="pre_workout" ${supp?.timing==='pre_workout'?'selected':''}>⚡ Pre-Workout</option>
             <option value="post_workout" ${supp?.timing==='post_workout'?'selected':''}>🏋️ Post-Workout</option>
+            <option value="before_bed" ${supp?.timing==='before_bed'?'selected':''}>🌙 Before Bed</option>
           </select>
         </div>
         <div class="form-group">
