@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0a12">
+  <title>SupTrack</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Loading screen -->
+    <div id="loading-screen" style="display:flex;align-items:center;justify-content:center;height:100vh;">
+      <div style="text-align:center;">
+        <h1 class="logo" style="font-size:28px;margin-bottom:8px;">SupTrack</h1>
+        <p style="color:var(--text-muted);font-size:13px;">Loading your data...</p>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header id="app-header" style="display:none;">
+      <a href="index.html" class="header-home-btn" title="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </a>
+      <h1 class="logo">SupTrack</h1>
+      <span class="header-date" id="header-date"></span>
+    </header>
+
+    <!-- Views -->
+    <main id="main-content" style="display:none;">
+
+      <!-- TODAY VIEW -->
+      <section id="view-today" class="view active">
+        <div class="view-header">
+          <h2>Today's Supplements</h2>
+          <div class="progress-ring-container" id="today-progress"></div>
+        </div>
+        <div id="today-list" class="today-list"></div>
+        <div id="today-empty" class="empty-state" style="display:none;">
+          <p>No supplements scheduled today.</p>
+          <button class="btn btn-primary" onclick="App.switchTab('supplements')">+ Add Supplements</button>
+        </div>
+      </section>
+
+      <!-- CALENDAR VIEW -->
+      <section id="view-calendar" class="view">
+        <div class="calendar-header">
+          <button class="btn-icon" onclick="App.Calendar.prevMonth()">&#8249;</button>
+          <h2 id="calendar-month-label"></h2>
+          <button class="btn-icon" onclick="App.Calendar.nextMonth()">&#8250;</button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+        <div id="calendar-day-detail" class="calendar-detail"></div>
+      </section>
+
+      <!-- SUPPLEMENTS VIEW -->
+      <section id="view-supplements" class="view">
+        <div class="view-header">
+          <h2>My Supplements</h2>
+          <button class="btn btn-primary btn-sm" onclick="App.Supplements.openAddModal()">+ Add</button>
+        </div>
+        <div id="supplements-list" class="supplements-list"></div>
+        <div id="supplements-empty" class="empty-state" style="display:none;">
+          <p>No supplements added yet.</p>
+          <button class="btn btn-primary" onclick="App.Supplements.openAddModal()">+ Add Your First Supplement</button>
+        </div>
+      </section>
+
+      <!-- SUPPLEMENT DETAIL/ANALYSIS VIEW -->
+      <section id="view-supplement-detail" class="view">
+        <button class="btn-back" onclick="App.switchTab('supplements')">&#8249; Back</button>
+        <div id="supplement-detail-content"></div>
+      </section>
+
+      <!-- METRICS VIEW -->
+      <section id="view-metrics" class="view">
+        <div class="view-header">
+          <h2>Health Metrics</h2>
+          <button class="btn btn-primary btn-sm" onclick="App.Metrics.openAddModal()">+ Add</button>
+        </div>
+        <div id="metrics-list" class="metrics-list"></div>
+        <div id="metrics-empty" class="empty-state" style="display:none;">
+          <p>No health metrics tracked yet.</p>
+          <button class="btn btn-primary" onclick="App.Metrics.openAddModal()">+ Track a Metric</button>
+        </div>
+      </section>
+
+      <!-- METRIC DETAIL VIEW -->
+      <section id="view-metric-detail" class="view">
+        <button class="btn-back" onclick="App.switchTab('metrics')">&#8249; Back</button>
+        <div id="metric-detail-content"></div>
+      </section>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav" style="display:none;">
+      <button class="nav-btn active" data-tab="today" onclick="App.switchTab('today')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Today</span>
+      </button>
+      <button class="nav-btn" data-tab="calendar" onclick="App.switchTab('calendar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Calendar</span>
+      </button>
+      <button class="nav-btn" data-tab="supplements" onclick="App.switchTab('supplements')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/></svg>
+        <span>Supps</span>
+      </button>
+      <button class="nav-btn" data-tab="metrics" onclick="App.switchTab('metrics')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Metrics</span>
+      </button>
+    </nav>
+
+    <!-- MODAL OVERLAY -->
+    <div id="modal-overlay" class="modal-overlay" onclick="App.closeModal()"></div>
+    <div id="modal" class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button class="btn-icon modal-close" onclick="App.closeModal()">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

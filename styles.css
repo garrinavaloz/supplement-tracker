@@ -42,7 +42,7 @@ html, body {
 }
 
 /* ========== HEADER ========== */
-#app-header {
+#app-header, header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -382,3 +382,163 @@ html, body {
 .mt-16 { margin-top: 16px; }
 .mb-8 { margin-bottom: 8px; }
 .hidden { display: none !important; }
+
+/* ========== HOME PAGE ========== */
+.home-greeting {
+  padding: 20px 0 24px;
+}
+.home-greeting-text {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.home-greeting-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.home-section { margin-bottom: 28px; }
+
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.home-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+.home-section-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Reminders */
+.home-reminder-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.home-reminder-group { margin-bottom: 14px; }
+
+.home-reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  margin-bottom: 6px;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+.home-reminder-item:hover { background: var(--bg-card-hover); border-color: var(--warning); }
+
+.home-reminder-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex-shrink: 0;
+}
+.home-reminder-info { flex: 1; }
+.home-reminder-name { font-size: 14px; font-weight: 600; display: block; }
+.home-reminder-dose { font-size: 12px; color: var(--text-muted); }
+
+/* Nav grid */
+.home-nav-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-nav-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+.home-nav-card:hover { background: var(--bg-card-hover); transform: translateX(2px); }
+.home-nav-card:active { transform: scale(0.98); }
+
+.home-nav-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.home-nav-info { flex: 1; }
+.home-nav-name { display: block; font-size: 15px; font-weight: 600; }
+.home-nav-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.home-nav-arrow { color: var(--text-muted); flex-shrink: 0; }
+
+/* ========== HEADER HOME BUTTON ========== */
+.header-home-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 4px 8px 4px 0;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease;
+}
+.header-home-btn:hover { color: var(--accent); }
+
+/* ========== STUB PAGES ========== */
+.stub-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+}
+.stub-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.stub-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.stub-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 260px;
+  margin-bottom: 24px;
+}
