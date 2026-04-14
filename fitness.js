@@ -263,19 +263,19 @@ function renderCalendarView() {
   const firstDayOfWeek = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // No wrapping div — .view already provides padding
   let html = `
-    <div style="padding:16px 20px;">
-      <div class="calendar-header">
-        <button class="btn-icon" onclick="calPrevMonth()">&#8249;</button>
-        <h2>${monthLabel}</h2>
-        <button class="btn-icon" onclick="calNextMonth()">&#8250;</button>
-      </div>
-      <div class="calendar-grid">
-        ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => `<div class="cal-day-label">${d}</div>`).join('')}
-        ${Array(firstDayOfWeek).fill('<div class="cal-day empty"></div>').join('')}`;
+    <div class="calendar-header">
+      <button class="btn-icon" onclick="calPrevMonth()">&#8249;</button>
+      <h2>${monthLabel}</h2>
+      <button class="btn-icon" onclick="calNextMonth()">&#8250;</button>
+    </div>
+    <div class="calendar-grid">
+      ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => `<div class="cal-day-label">${d}</div>`).join('')}
+      ${Array(firstDayOfWeek).fill('<div class="cal-day empty"></div>').join('')}`;
 
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
     const entries = byDate[dateStr];
     const isToday = dateStr === todayStr;
     const isFuture = dateStr > todayStr;
@@ -292,12 +292,12 @@ function renderCalendarView() {
       : null;
 
     html += `<div class="${cls}" onclick="selectCalDay('${dateStr}')">
-      <span>${d}</span>
+      <span class="cal-day-num">${dayNum}</span>
       ${avg !== null ? `<span class="cal-weight-mini">${avg.toFixed(1)}</span>` : ''}
     </div>`;
   }
 
-  html += `</div><div id="cal-day-detail" class="calendar-detail"></div></div>`;
+  html += `</div><div id="cal-day-detail" class="calendar-detail"></div>`;
 
   document.getElementById('view-calendar').innerHTML = html;
   if (selectedCalDay) renderCalDayDetail(selectedCalDay, byDate[selectedCalDay] || []);
@@ -324,23 +324,21 @@ function renderCalDayDetail(dateStr, entries) {
   const el = document.getElementById('cal-day-detail');
   const d = new Date(dateStr + 'T12:00:00');
   const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const shortLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const isFuture = dateStr > today();
+  const defaults = getDefaults();
 
-  if (!entries.length) {
-    el.innerHTML = `
-      <div class="cal-detail-date">${label}</div>
-      <p style="color:var(--text-muted);font-size:13px;">No weight logged this day.</p>`;
-    return;
-  }
+  let html = `<div class="cal-detail-date">${label}</div>`;
 
-  const avg = Math.round((entries.reduce((a, l) => a + Number(l.weight), 0) / entries.length) * 10) / 10;
-
-  el.innerHTML = `
-    <div class="cal-detail-date">${label}</div>
-    ${entries.length > 1 ? `
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">
+  // Existing entries
+  if (entries.length) {
+    const avg = Math.round((entries.reduce((a, l) => a + Number(l.weight), 0) / entries.length) * 10) / 10;
+    if (entries.length > 1) {
+      html += `<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">
         Average: <strong style="color:var(--warning);">${avg.toFixed(1)} lbs</strong>
-      </div>` : ''}
-    ${entries.map(l => `
+      </div>`;
+    }
+    html += entries.map(l => `
       <div class="weight-entry-card" style="margin-bottom:6px;">
         <div class="weight-entry-main">
           <span class="weight-entry-value">${Number(l.weight).toFixed(1)}</span>
@@ -350,7 +348,101 @@ function renderCalDayDetail(dateStr, entries) {
           <span class="card-badge badge-blue">${timeLabel(l.time_of_day)}</span>
           <span class="card-badge ${l.meal_context === 'pre_meal' ? 'badge-yellow' : 'badge-green'}">${mealLabel(l.meal_context)}</span>
         </div>
-      </div>`).join('')}`;
+        <button class="btn-icon" onclick="confirmDelete('${l.id}')"
+          style="color:var(--text-muted);font-size:20px;line-height:1;">&times;</button>
+      </div>`).join('');
+  }
+
+  // Log form for any non-future day
+  if (!isFuture) {
+    html += `
+      <div style="margin-top:${entries.length ? '14px' : '0'};">
+        <div class="fitness-section-label">${entries.length ? 'ADD ENTRY' : 'LOG WEIGHT'}</div>
+        <div class="cal-log-row">
+          <div class="weight-input-wrap" style="flex:1;">
+            <input type="number" id="cal-weight-input" class="form-input weight-input"
+              step="0.1" min="0" max="999" placeholder="0.0" inputmode="decimal"
+              style="font-size:22px !important;">
+            <span class="weight-unit">lbs</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label class="form-label">Time of Day</label>
+          <div class="checkbox-group">
+            ${['morning','afternoon','night'].map(t => `
+              <button class="checkbox-option${defaults.time_of_day === t ? ' selected' : ''}"
+                data-group="cal-time" data-value="${t}" onclick="selectOption(this,'cal-time')">
+                ${timeLabel(t)}
+              </button>`).join('')}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Meal</label>
+          <div class="checkbox-group">
+            <button class="checkbox-option${defaults.meal_context === 'pre_meal' ? ' selected' : ''}"
+              data-group="cal-meal" data-value="pre_meal" onclick="selectOption(this,'cal-meal')">
+              Pre-meal
+            </button>
+            <button class="checkbox-option${defaults.meal_context === 'post_meal' ? ' selected' : ''}"
+              data-group="cal-meal" data-value="post_meal" onclick="selectOption(this,'cal-meal')">
+              Post-meal
+            </button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="cal-log-btn"
+          style="width:100%;justify-content:center;"
+          onclick="logWeightForDate('${dateStr}')">
+          Log for ${shortLabel}
+        </button>
+      </div>`;
+  } else {
+    if (!entries.length) {
+      html += `<p style="color:var(--text-muted);font-size:13px;margin-top:4px;">No entries for this day.</p>`;
+    }
+  }
+
+  el.innerHTML = html;
+}
+
+async function logWeightForDate(dateStr) {
+  const input = document.getElementById('cal-weight-input');
+  const weight = parseFloat(input.value);
+
+  if (!weight || weight <= 0 || weight > 999) {
+    input.style.borderColor = 'var(--danger)';
+    input.focus();
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+
+  const timeBtn = document.querySelector('[data-group="cal-time"].selected');
+  const mealBtn = document.querySelector('[data-group="cal-meal"].selected');
+  const time_of_day = timeBtn?.dataset.value || 'morning';
+  const meal_context = mealBtn?.dataset.value || 'pre_meal';
+
+  saveDefaults({ time_of_day, meal_context });
+
+  const btn = document.getElementById('cal-log-btn');
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+
+  const entry = {
+    id: genId(),
+    date: dateStr,
+    weight: Math.round(weight * 10) / 10,
+    time_of_day,
+    meal_context
+  };
+
+  const ok = await saveWeightLog(entry);
+  if (ok) {
+    allLogs.push(entry);
+    allLogs.sort((a, b) => b.date.localeCompare(a.date));
+    renderCalendarView();
+  } else {
+    btn.textContent = 'Try again';
+    btn.disabled = false;
+  }
 }
 
 // ===== GRAPH TAB =====

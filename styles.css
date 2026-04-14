@@ -642,16 +642,27 @@ html, body {
 }
 
 /* ===== WEIGHT CALENDAR ===== */
+/* view-calendar has no inline padding — let .view CSS handle it, no double padding */
+#view-calendar { padding: 16px 20px; }
+#view-graph { padding: 16px 20px; }
+
 .weight-cal-day {
   aspect-ratio: unset !important;
-  min-height: 50px;
-  flex-direction: column;
-  gap: 1px;
-  padding: 5px 2px;
+  height: 54px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px;
+  padding: 4px 2px;
+}
+.cal-day-num {
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
 }
 .cal-weight-mini {
-  font-size: 8.5px;
+  font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--warning);
   line-height: 1;
@@ -661,7 +672,15 @@ html, body {
   background: rgba(251,191,36,0.12);
   color: var(--warning);
 }
+.cal-day.has-weight .cal-day-num { color: var(--warning); }
 .cal-day.has-weight:hover { background: rgba(251,191,36,0.22); }
+
+.cal-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
 
 /* ===== GRAPH TAB ===== */
 .graph-periods {
