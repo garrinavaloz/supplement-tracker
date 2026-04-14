@@ -51,8 +51,8 @@ async function getWeightLogs() {
 
 async function saveWeightLog(entry) {
   const { error } = await sb.from('weight_logs').insert(entry);
-  if (error) { console.error('saveWeightLog:', error); return false; }
-  return true;
+  if (error) { console.error('saveWeightLog:', error); return { ok: false, message: error.message }; }
+  return { ok: true };
 }
 
 async function deleteWeightLog(id) {
@@ -225,8 +225,8 @@ async function logWeight() {
     meal_context
   };
 
-  const ok = await saveWeightLog(entry);
-  if (ok) {
+  const result = await saveWeightLog(entry);
+  if (result.ok) {
     allLogs.unshift(entry);
     input.value = '';
     if (activeTab === 'log') renderLogTab();
@@ -235,6 +235,7 @@ async function logWeight() {
   } else {
     btn.textContent = 'Log Weight';
     btn.disabled = false;
+    showFormError('log-btn', result.message);
   }
 }
 
@@ -434,14 +435,15 @@ async function logWeightForDate(dateStr) {
     meal_context
   };
 
-  const ok = await saveWeightLog(entry);
-  if (ok) {
+  const result = await saveWeightLog(entry);
+  if (result.ok) {
     allLogs.push(entry);
     allLogs.sort((a, b) => b.date.localeCompare(a.date));
     renderCalendarView();
   } else {
     btn.textContent = 'Try again';
     btn.disabled = false;
+    showFormError('cal-log-btn', result.message);
   }
 }
 
@@ -657,15 +659,55 @@ function buildGraphChart(labels, yValues, xIndices, reg) {
   });
 }
 
+// ===== ERROR HELPER =====
+function showFormError(btnId, message) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const existing = btn.parentNode.querySelector('.form-save-error');
+  if (existing) existing.remove();
+  const err = document.createElement('p');
+  err.className = 'form-save-error';
+  err.textContent = message || 'Could not save to database.';
+  btn.insertAdjacentElement('afterend', err);
+}
+
 // ===== INIT =====
 async function init() {
-  allLogs = await getWeightLogs();
-  renderLogTab();
+  // Check table accessibility before loading
+  const { error: tableError } = await sb.from('weight_logs').select('id').limit(0);
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('app-header').style.display = '';
   document.getElementById('fitness-tabs').style.display = '';
   document.getElementById('main-content').style.display = '';
+
+  if (tableError) {
+    document.getElementById('view-log').innerHTML = `
+      <div class="db-setup-card">
+        <div class="db-setup-title">Database setup required</div>
+        <p class="db-setup-desc">
+          The <code>weight_logs</code> table is missing or inaccessible in Supabase.<br><br>
+          Go to your <strong>Supabase dashboard → SQL Editor</strong> and run:
+        </p>
+        <pre class="db-setup-sql">create table weight_logs (
+  id text primary key,
+  date date not null,
+  weight numeric(5,1) not null,
+  time_of_day text not null,
+  meal_context text not null,
+  created_at timestamptz default now()
+);
+alter table weight_logs disable row level security;</pre>
+        <p class="db-setup-error">Error: ${tableError.message}</p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="location.reload()">
+          Retry after running SQL
+        </button>
+      </div>`;
+    return;
+  }
+
+  allLogs = await getWeightLogs();
+  renderLogTab();
 }
 
 init();

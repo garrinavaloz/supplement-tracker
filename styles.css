@@ -759,6 +759,54 @@ html, body {
   border-radius: 1px;
 }
 
+/* ========== DB SETUP / FORM ERRORS ========== */
+.db-setup-card {
+  background: var(--bg-card);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.db-setup-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--danger);
+  margin-bottom: 10px;
+}
+.db-setup-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.db-setup-sql {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  white-space: pre;
+  overflow-x: auto;
+  display: block;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+.db-setup-error {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+.form-save-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 8px;
+  text-align: center;
+  line-height: 1.4;
+}
+
 /* ========== STUB PAGES ========== */
 .stub-container {
   display: flex;
