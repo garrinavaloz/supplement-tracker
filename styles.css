@@ -512,6 +512,135 @@ html, body {
 }
 .header-home-btn:hover { color: var(--accent); }
 
+/* ========== FITNESS PAGE ========== */
+#fitness-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.fitness-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.fitness-tab.active {
+  background: rgba(251,191,36,0.15);
+  color: var(--warning);
+}
+
+.fitness-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  padding-left: 2px;
+}
+
+.fitness-form-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.weight-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.weight-input {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  padding-right: 52px !important;
+  letter-spacing: -0.5px;
+}
+.weight-unit {
+  position: absolute;
+  right: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Today entries */
+.weight-entry-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.weight-entry-main {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 1;
+}
+.weight-entry-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--warning);
+}
+.weight-entry-unit {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.weight-entry-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* History */
+.weight-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.weight-history-date {
+  font-size: 14px;
+  font-weight: 600;
+  display: block;
+}
+.weight-history-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+.weight-history-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--warning);
+}
+
 /* ========== STUB PAGES ========== */
 .stub-container {
   display: flex;

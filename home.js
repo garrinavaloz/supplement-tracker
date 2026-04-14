@@ -58,6 +58,12 @@ async function getLogsForDate(dateStr) {
   return logs;
 }
 
+async function getWeightLoggedToday(dateStr) {
+  const { data, error } = await sb.from('weight_logs').select('id').eq('date', dateStr).limit(1);
+  if (error) return false;
+  return (data || []).length > 0;
+}
+
 // ===== RENDER =====
 function renderGreeting() {
   const hour = new Date().getHours();
@@ -80,17 +86,31 @@ function renderHeaderDate() {
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function renderReminders(supplements, logs, today) {
+function renderReminders(supplements, suppLogs, weightLogged, today) {
   const container = document.getElementById('reminders-list');
+  let html = '';
 
-  // Find pending doses
+  // --- Weight reminder ---
+  if (!weightLogged) {
+    html += `
+      <a href="fitness.html" class="home-reminder-item" style="margin-bottom:10px;">
+        <div class="home-reminder-dot" style="background:var(--warning);"></div>
+        <div class="home-reminder-info">
+          <span class="home-reminder-name">Log your weight</span>
+          <span class="home-reminder-dose">Daily check-in · Fitness</span>
+        </div>
+        <span class="card-badge badge-yellow">Pending</span>
+      </a>`;
+  }
+
+  // --- Supplement reminders ---
   const pending = [];
   for (const s of supplements) {
     if (!U.isScheduled(s, today)) continue;
     const doses = s.frequency === 'twice_daily' ? 2 : 1;
     for (let i = 0; i < doses; i++) {
       const key = s.id + (i > 0 ? '_' + i : '');
-      if (!logs[key]?.taken) {
+      if (!suppLogs[key]?.taken) {
         pending.push({
           name: s.name,
           dosage: s.dosage,
@@ -101,42 +121,38 @@ function renderReminders(supplements, logs, today) {
     }
   }
 
-  if (pending.length === 0) {
-    container.innerHTML = `
-      <div class="home-reminder-done">
-        <span style="font-size:24px;">✓</span>
-        <span>All supplements taken for today</span>
-      </div>`;
-    return;
-  }
-
-  // Group by timing
-  const groups = {};
-  for (const item of pending) {
-    const t = item.timing || 'other';
-    if (!groups[t]) groups[t] = [];
-    groups[t].push(item);
-  }
-
-  const timingOrder = ['water_soluble', 'fat_soluble', 'pre_workout', 'post_workout', 'before_bed', 'other'];
-  let html = '';
-
-  for (const timing of timingOrder) {
-    if (!groups[timing]) continue;
-    html += `<div class="home-reminder-group">
-      <div class="timing-label">${U.timingIcon(timing)} ${U.timingLabel(timing)}</div>`;
-    for (const item of groups[timing]) {
-      html += `
-        <a href="supplements.html" class="home-reminder-item">
-          <div class="home-reminder-dot"></div>
-          <div class="home-reminder-info">
-            <span class="home-reminder-name">${item.name}${item.doseLabel}</span>
-            <span class="home-reminder-dose">${item.dosage || ''}</span>
-          </div>
-          <span class="card-badge badge-yellow">Pending</span>
-        </a>`;
+  if (pending.length > 0) {
+    const groups = {};
+    for (const item of pending) {
+      const t = item.timing || 'other';
+      if (!groups[t]) groups[t] = [];
+      groups[t].push(item);
     }
-    html += `</div>`;
+    const timingOrder = ['water_soluble', 'fat_soluble', 'pre_workout', 'post_workout', 'before_bed', 'other'];
+    for (const timing of timingOrder) {
+      if (!groups[timing]) continue;
+      html += `<div class="home-reminder-group">
+        <div class="timing-label">${U.timingIcon(timing)} ${U.timingLabel(timing)}</div>`;
+      for (const item of groups[timing]) {
+        html += `
+          <a href="supplements.html" class="home-reminder-item">
+            <div class="home-reminder-dot"></div>
+            <div class="home-reminder-info">
+              <span class="home-reminder-name">${item.name}${item.doseLabel}</span>
+              <span class="home-reminder-dose">${item.dosage || ''}</span>
+            </div>
+            <span class="card-badge badge-yellow">Pending</span>
+          </a>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  if (!html) {
+    html = `<div class="home-reminder-done">
+      <span style="font-size:24px;">✓</span>
+      <span>All caught up for today</span>
+    </div>`;
   }
 
   container.innerHTML = html;
@@ -145,14 +161,15 @@ function renderReminders(supplements, logs, today) {
 // ===== INIT =====
 async function init() {
   const today = U.today();
-  const [supplements, logs] = await Promise.all([
+  const [supplements, suppLogs, weightLogged] = await Promise.all([
     getSupplements(),
-    getLogsForDate(today)
+    getLogsForDate(today),
+    getWeightLoggedToday(today)
   ]);
 
   renderGreeting();
   renderHeaderDate();
-  renderReminders(supplements, logs, today);
+  renderReminders(supplements, suppLogs, weightLogged, today);
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('app-header').style.display = '';

@@ -11,28 +11,62 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="app">
-    <header>
+
+    <!-- Loading screen -->
+    <div id="loading-screen" style="display:flex;align-items:center;justify-content:center;height:100vh;">
+      <div style="text-align:center;">
+        <h1 class="logo" style="font-size:28px;margin-bottom:8px;">Fitness</h1>
+        <p style="color:var(--text-muted);font-size:13px;">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header id="app-header" style="display:none;">
       <a href="index.html" class="header-home-btn" title="Home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </a>
       <h1 class="logo" style="font-size:18px;">Fitness</h1>
       <span></span>
     </header>
-    <main id="main-content">
-      <section class="view active" style="padding:16px 20px;">
-        <div class="stub-container">
-          <div class="stub-icon" style="background:rgba(251,191,36,0.15);color:var(--warning);">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="36" height="36"><path d="M6 5v14M18 5v14M6 12h12M3 8h3M3 16h3M18 8h3M18 16h3"/></svg>
+
+    <!-- Sub-tab bar -->
+    <div id="fitness-tabs" style="display:none;">
+      <button class="fitness-tab active" data-tab="weight" onclick="switchFitnessTab('weight')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        Weight
+      </button>
+    </div>
+
+    <!-- Main content -->
+    <main id="main-content" style="display:none;">
+
+      <!-- Weight view -->
+      <section id="view-weight" class="view active" style="padding:16px 20px;">
+        <div id="weight-log-form"></div>
+        <div id="today-entries"></div>
+        <div id="weight-chart-container" style="display:none;">
+          <div class="fitness-section-label">30-DAY TREND</div>
+          <div class="metric-chart-container" style="height:180px;margin-bottom:24px;">
+            <canvas id="weight-chart"></canvas>
           </div>
-          <h2 class="stub-title">Fitness</h2>
-          <p class="stub-desc">Log workouts, track progress, and hit your goals. Coming soon.</p>
-          <a href="index.html" class="btn btn-secondary" style="margin-top:8px;">Back to Home</a>
         </div>
+        <div id="weight-history"></div>
       </section>
+
     </main>
+
   </div>
+
+  <script src="fitness.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>
