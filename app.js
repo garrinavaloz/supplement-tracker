@@ -13,7 +13,8 @@ const DB = {
     return data.map(r => ({
       id: r.id, name: r.name, type: r.type, dosage: r.dosage,
       frequency: r.frequency, timing: r.timing, cycle: r.cycle,
-      purpose: r.purpose, startDate: r.start_date, active: r.active,
+      purpose: r.purpose, buyLink: r.buy_link || null,
+      startDate: r.start_date, active: r.active,
       modifications: r.modifications || []
     }));
   },
@@ -22,7 +23,8 @@ const DB = {
     const row = {
       id: s.id, name: s.name, type: s.type, dosage: s.dosage,
       frequency: s.frequency, timing: s.timing, cycle: s.cycle,
-      purpose: s.purpose, start_date: s.startDate, active: s.active,
+      purpose: s.purpose, buy_link: s.buyLink || null,
+      start_date: s.startDate, active: s.active,
       modifications: s.modifications || []
     };
     const { error } = await sb.from('supplements').upsert(row);
@@ -569,6 +571,10 @@ const App = {
           <label class="form-label">Purpose</label>
           <textarea class="form-textarea" id="f-purpose" placeholder="Why are you taking this?">${supp?.purpose || ''}</textarea>
         </div>
+        <div class="form-group">
+          <label class="form-label">Buy Link</label>
+          <input class="form-input" id="f-buy-link" type="url" placeholder="https://amazon.com/..." value="${supp?.buyLink || ''}">
+        </div>
         ${isEdit ? `
         <div class="form-group">
           <label class="form-label">Status</label>
@@ -602,6 +608,7 @@ const App = {
       const timing = document.getElementById('f-timing').value;
       const cycleType = document.getElementById('f-cycle-type').value;
       const purpose = document.getElementById('f-purpose').value.trim();
+      const buyLink = document.getElementById('f-buy-link').value.trim() || null;
 
       if (!name || !type || !dosage) { alert('Please fill in name, type, and dosage.'); return; }
 
@@ -638,10 +645,10 @@ const App = {
           });
         }
 
-        await DB.saveSupplement({ ...old, name, type, dosage, frequency, timing, cycle, purpose, active, modifications: mods });
+        await DB.saveSupplement({ ...old, name, type, dosage, frequency, timing, cycle, purpose, buyLink, active, modifications: mods });
       } else {
         await DB.saveSupplement({
-          id: U.id(), name, type, dosage, frequency, timing, cycle, purpose,
+          id: U.id(), name, type, dosage, frequency, timing, cycle, purpose, buyLink,
           startDate: U.today(), active: true, modifications: []
         });
       }
@@ -789,6 +796,7 @@ const App = {
           <div class="detail-row"><span class="detail-label">Started</span><span class="detail-value">${U.formatDisplay(supp.startDate)}</span></div>
           <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${supp.active ? '🟢 Active' : '🔴 Paused'}</span></div>
           <div class="detail-row"><span class="detail-label">Purpose</span><span class="detail-value" style="max-width:60%">${supp.purpose || '—'}</span></div>
+          ${supp.buyLink ? `<div class="detail-row"><span class="detail-label">Buy</span><span class="detail-value"><a href="${supp.buyLink}" target="_blank" rel="noopener" style="color:var(--accent-blue);text-decoration:none;">🛒 Open link</a></span></div>` : ''}
         </div>
 
         <div class="detail-section">

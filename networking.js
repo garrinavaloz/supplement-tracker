@@ -10,7 +10,8 @@ const DB = {
     if (error) { console.error('getContacts:', error); return []; }
     return (data || []).map(r => ({
       id: r.id, name: r.name, relationship: r.relationship,
-      description: r.description, stayInContact: r.stay_in_contact,
+      description: r.description, phone: r.phone || null,
+      stayInContact: r.stay_in_contact,
       contactFrequency: r.contact_frequency, contactMethod: r.contact_method,
       showOnHome: r.show_on_home, nextContactDate: r.next_contact_date,
       createdAt: r.created_at
@@ -20,7 +21,8 @@ const DB = {
   async saveContact(c) {
     const { error } = await sb.from('contacts').upsert({
       id: c.id, name: c.name, relationship: c.relationship,
-      description: c.description, stay_in_contact: c.stayInContact,
+      description: c.description, phone: c.phone || null,
+      stay_in_contact: c.stayInContact,
       contact_frequency: c.contactFrequency, contact_method: c.contactMethod,
       show_on_home: c.showOnHome, next_contact_date: c.nextContactDate
     }, { onConflict: 'id' });
@@ -368,6 +370,7 @@ const App = {
               ${c.contactMethod ? ' · Prefers ' + U.methodIcon(c.contactMethod) + ' ' + U.methodLabel(c.contactMethod) : ''}
             </div>
             ${c.description ? `<p style="font-size:13px;color:var(--text-secondary);margin-top:8px;">${c.description}</p>` : ''}
+            ${c.phone ? `<a href="tel:${c.phone.replace(/\s/g,'')}" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:14px;font-weight:600;color:var(--accent-blue);text-decoration:none;">📞 ${c.phone}</a>` : ''}
           </div>
           ${statusBadge}
         </div>
@@ -539,6 +542,10 @@ const App = {
         <label class="form-label">Description</label>
         <textarea class="form-textarea" id="f-desc" placeholder="How you know them, notes...">${c?.description || ''}</textarea>
       </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input class="form-input" id="f-phone" type="tel" placeholder="+1 (555) 000-0000" value="${c?.phone || ''}">
+      </div>
 
       <div class="form-group">
         <label class="form-label" style="margin-bottom:8px;">Stay in Contact</label>
@@ -650,6 +657,7 @@ const App = {
 
     const relationship = document.getElementById('f-rel').value;
     const description = document.getElementById('f-desc').value.trim() || null;
+    const phone = document.getElementById('f-phone')?.value.trim() || null;
     const stayInContact = document.getElementById('f-stay').checked;
     const showOnHome = document.getElementById('f-home')?.checked || false;
     const contactMethod = document.getElementById('f-method')?.value || null;
@@ -677,7 +685,7 @@ const App = {
 
     const contact = {
       id: editId || U.id(),
-      name, relationship, description,
+      name, relationship, description, phone,
       stayInContact, contactFrequency, contactMethod,
       showOnHome, nextContactDate
     };
