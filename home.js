@@ -123,12 +123,16 @@ async function getWeightLoggedToday(dateStr) {
 }
 
 async function getCustomReminders() {
-  const { data, error } = await sb.from('reminders').select('*').eq('active', true).order('created_at');
+  const { data, error } = await sb.from('reminders').select('*').order('created_at');
   if (error) return [];
   return (data || []).map(r => ({
     id: r.id, name: r.name, frequency: r.frequency,
+    type: r.type || 'scheduled',
     customInterval: r.custom_interval, timeOfDay: r.time_of_day, timeOfDay2: r.time_of_day_2,
     flexibleCycle: r.flexible_cycle, cycleConfig: r.cycle_config,
+    showOnHome: r.show_on_home !== false,
+    importance: r.importance || 'medium',
+    completedAt: r.completed_at || null,
     active: r.active, startDate: r.start_date
   }));
 }
@@ -186,8 +190,29 @@ function renderReminders(supplements, suppLogs, weightLogged, today, customRemin
       </a>`;
   }
 
-  // --- Custom reminders ---
+  // --- Standing reminders (show_on_home = true, not yet completed) ---
+  const impOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  const standingDue = (customReminders || [])
+    .filter(r => r.type === 'standing' && !r.completedAt && r.showOnHome)
+    .sort((a, b) => (impOrder[a.importance] ?? 2) - (impOrder[b.importance] ?? 2));
+  for (const r of standingDue) {
+    const impColors = { critical: 'var(--danger)', high: '#fb923c', medium: 'var(--accent-blue)', low: 'var(--text-muted)' };
+    const dotColor = impColors[r.importance] || 'var(--accent-blue)';
+    html += `
+      <a href="reminders.html" class="home-reminder-item" style="margin-bottom:6px;">
+        <div class="home-reminder-dot" style="background:${dotColor};"></div>
+        <div class="home-reminder-info">
+          <span class="home-reminder-name">${r.name}</span>
+          <span class="home-reminder-dose">Standing · ${r.importance.charAt(0).toUpperCase()+r.importance.slice(1)}</span>
+        </div>
+        <span class="card-badge badge-blue">Open</span>
+      </a>`;
+  }
+
+  // --- Scheduled custom reminders ---
   for (const r of (customReminders || [])) {
+    if (r.type === 'standing') continue;
+    if (!r.active) continue;
     const rLogs = (allReminderLogs || []).filter(l => l.reminder_id === r.id);
     if (!isCustomReminderDue(r, today, rLogs)) continue;
     const doses = r.frequency === 'twice_daily' ? 2 : 1;

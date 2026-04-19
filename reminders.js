@@ -10,9 +10,13 @@ const DB = {
     if (error) { console.error('getReminders:', error); return []; }
     return (data || []).map(r => ({
       id: r.id, name: r.name, description: r.description,
+      type: r.type || 'scheduled',
       frequency: r.frequency, customInterval: r.custom_interval,
       timeOfDay: r.time_of_day, timeOfDay2: r.time_of_day_2,
       flexibleCycle: r.flexible_cycle, cycleConfig: r.cycle_config,
+      showOnHome: r.show_on_home !== false,
+      importance: r.importance || 'medium',
+      completedAt: r.completed_at || null,
       active: r.active, startDate: r.start_date
     }));
   },
@@ -20,9 +24,13 @@ const DB = {
   async saveReminder(r) {
     const row = {
       id: r.id, name: r.name, description: r.description,
+      type: r.type || 'scheduled',
       frequency: r.frequency, custom_interval: r.customInterval,
       time_of_day: r.timeOfDay, time_of_day_2: r.timeOfDay2,
       flexible_cycle: r.flexibleCycle, cycle_config: r.cycleConfig,
+      show_on_home: r.showOnHome !== false,
+      importance: r.importance || 'medium',
+      completed_at: r.completedAt || null,
       active: r.active, start_date: r.startDate
     };
     const { error } = await sb.from('reminders').upsert(row);
@@ -250,6 +258,7 @@ const App = {
     );
     if (tab === 'active') this.Active.render();
     else if (tab === 'calendar') this.Calendar.render();
+    else if (tab === 'standing') this.Standing.render();
   },
 
   showDetail() {
@@ -282,9 +291,10 @@ const App = {
       const reminders = App._remindersCache || [];
       const logs = App._allLogs || [];
 
-      // Determine due items for today
+      // Determine due items for today (scheduled reminders only)
       const dueItems = [];
       for (const r of reminders) {
+        if (r.type === 'standing') continue;
         if (!r.active) continue;
         const rLogs = logs.filter(l => l.reminder_id === r.id);
         if (!U.isReminderDue(r, today, rLogs)) continue;
@@ -323,9 +333,9 @@ const App = {
         }
       }
 
-      // All reminders list
-      const active = reminders.filter(r => r.active);
-      const inactive = reminders.filter(r => !r.active);
+      // All reminders list (scheduled only)
+      const active = reminders.filter(r => r.type !== 'standing' && r.active);
+      const inactive = reminders.filter(r => r.type !== 'standing' && !r.active);
 
       const reminderCard = (r) => {
         const rLogs = logs.filter(l => l.reminder_id === r.id);
@@ -355,10 +365,10 @@ const App = {
         listHtml += `<div class="fitness-section-label" style="margin:20px 0 10px;">PAUSED</div>`;
         listHtml += inactive.map(reminderCard).join('');
       }
-      if (reminders.length === 0) {
+      if (reminders.filter(r => r.type !== 'standing').length === 0) {
         listHtml = `<div class="empty-state" style="padding:32px 0;">
-          <p style="font-size:15px;margin-bottom:16px;">No reminders yet.</p>
-          <button class="btn btn-primary" onclick="App.openAddModal()">+ Add Your First Reminder</button>
+          <p style="font-size:15px;margin-bottom:16px;">No scheduled reminders yet.</p>
+          <button class="btn btn-primary" onclick="App.openAddModal()">+ Add a Reminder</button>
         </div>`;
       }
 
@@ -385,6 +395,97 @@ const App = {
       }
       await App.refresh();
       await this.render();
+    }
+  },
+
+  // ===== STANDING REMINDERS VIEW =====
+  Standing: {
+    _importanceOrder: { critical: 0, high: 1, medium: 2, low: 3 },
+
+    render() {
+      const all = (App._remindersCache || []).filter(r => r.type === 'standing');
+      const pending = all
+        .filter(r => !r.completedAt)
+        .sort((a, b) => (this._importanceOrder[a.importance] ?? 2) - (this._importanceOrder[b.importance] ?? 2));
+      const completed = all
+        .filter(r => !!r.completedAt)
+        .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+      const badge = (imp) => {
+        const map = {
+          critical: ['badge-critical', 'Critical'],
+          high:     ['badge-high',     'High'],
+          medium:   ['badge-blue',     'Medium'],
+          low:      ['badge-low',      'Low']
+        };
+        const [cls, label] = map[imp] || map.medium;
+        return `<span class="card-badge ${cls}">${label}</span>`;
+      };
+
+      const card = (r) => {
+        const doneStyle = r.completedAt ? 'opacity:0.5;' : '';
+        const doneLine = r.completedAt
+          ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Completed ${U.formatDisplay(r.completedAt.slice(0,10))}</div>`
+          : '';
+        return `<div class="card" style="${doneStyle}cursor:default;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div style="flex:1;" onclick="App.Detail.show('${r.id}')">
+              <div style="font-size:15px;font-weight:600;">${r.name}</div>
+              ${r.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${r.description}</div>` : ''}
+              ${doneLine}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+              ${badge(r.importance)}
+              ${!r.completedAt
+                ? `<button class="btn btn-primary btn-sm" onclick="App.Standing.markComplete('${r.id}')">Mark Done</button>`
+                : `<button class="btn btn-secondary btn-sm" onclick="App.Standing.markIncomplete('${r.id}')">Undo</button>`
+              }
+            </div>
+          </div>
+        </div>`;
+      };
+
+      let html = `<div class="view-header">
+        <h2>Standing</h2>
+        <button class="btn btn-primary btn-sm" onclick="App.openAddModal(null,'standing')">+ Add</button>
+      </div>`;
+
+      if (pending.length === 0 && completed.length === 0) {
+        html += `<div class="empty-state" style="padding:32px 0;">
+          <p style="font-size:15px;margin-bottom:16px;">No standing reminders yet.</p>
+          <button class="btn btn-primary" onclick="App.openAddModal(null,'standing')">+ Add a Standing Reminder</button>
+        </div>`;
+      } else {
+        if (pending.length > 0) {
+          html += pending.map(card).join('');
+        } else {
+          html += `<div class="home-reminder-done" style="margin-bottom:20px;">
+            <span style="font-size:20px;">✓</span><span>All standing reminders completed</span>
+          </div>`;
+        }
+        if (completed.length > 0) {
+          html += `<div class="fitness-section-label" style="margin:20px 0 10px;">COMPLETED</div>`;
+          html += completed.map(card).join('');
+        }
+      }
+
+      document.getElementById('view-standing').innerHTML = html;
+    },
+
+    async markComplete(id) {
+      const { error } = await sb.from('reminders')
+        .update({ completed_at: new Date().toISOString() }).eq('id', id);
+      if (error) { console.error('markComplete:', error); return; }
+      await App.refresh();
+      this.render();
+    },
+
+    async markIncomplete(id) {
+      const { error } = await sb.from('reminders')
+        .update({ completed_at: null }).eq('id', id);
+      if (error) { console.error('markIncomplete:', error); return; }
+      await App.refresh();
+      this.render();
     }
   },
 
@@ -551,6 +652,52 @@ const App = {
     _render() {
       const reminder = (App._remindersCache || []).find(r => r.id === this._reminderId);
       if (!reminder) { App.switchTab('active'); return; }
+
+      // Standing reminders get a simplified detail view
+      if (reminder.type === 'standing') {
+        const importanceLabels = { critical: '🔴 Critical', high: '🟠 High', medium: '🔵 Medium', low: '⚪ Low' };
+        const impBadgeClass = { critical: 'badge-critical', high: 'badge-high', medium: 'badge-blue', low: 'badge-low' };
+        const html = `
+          <button class="btn-back" onclick="App.switchTab('standing')">&#8249; Back</button>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px;">
+            <div style="flex:1;">
+              <h2 style="font-size:22px;font-weight:700;line-height:1.2;">${reminder.name}</h2>
+              ${reminder.description ? `<p style="font-size:13px;color:var(--text-secondary);margin-top:6px;">${reminder.description}</p>` : ''}
+            </div>
+            <span class="card-badge ${impBadgeClass[reminder.importance]||'badge-blue'}" style="flex-shrink:0;margin-top:4px;">
+              ${importanceLabels[reminder.importance]||'Medium'}
+            </span>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">Details</div>
+            <div class="detail-row">
+              <span class="detail-label">Type</span>
+              <span class="detail-value">Standing Reminder</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Show on Home</span>
+              <span class="detail-value">${reminder.showOnHome ? 'Yes' : 'No'}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Created</span>
+              <span class="detail-value">${U.formatDisplay(reminder.startDate)}</span>
+            </div>
+            ${reminder.completedAt ? `<div class="detail-row">
+              <span class="detail-label">Completed</span>
+              <span class="detail-value text-accent">${U.formatDisplay(reminder.completedAt.slice(0,10))}</span>
+            </div>` : ''}
+          </div>
+          <div class="form-actions">
+            ${!reminder.completedAt
+              ? `<button class="btn btn-primary" onclick="App.Standing.markComplete('${reminder.id}');App.switchTab('standing')">Mark as Done</button>`
+              : `<button class="btn btn-secondary" onclick="App.Standing.markIncomplete('${reminder.id}');App.switchTab('standing')">Mark as Incomplete</button>`
+            }
+            <button class="btn btn-secondary" onclick="App.openAddModal('${reminder.id}')">Edit</button>
+          </div>
+        `;
+        document.getElementById('detail-content').innerHTML = html;
+        return;
+      }
       const logs = App._allLogs || [];
       const rLogs = logs.filter(l => l.reminder_id === reminder.id);
       const today = U.today();
@@ -823,21 +970,25 @@ const App = {
   },
 
   // ===== ADD / EDIT FORM =====
-  openAddModal(editId) {
+  // defaultType: 'scheduled' | 'standing' — used when opening from the Standing tab
+  openAddModal(editId, defaultType) {
     const isEdit = !!editId;
     const r = isEdit ? (this._remindersCache || []).find(x => x.id === editId) : null;
 
+    const type = r?.type || defaultType || 'scheduled';
+    const isStanding = type === 'standing';
     const freq = r?.frequency || 'daily';
-    const showCustom = freq === 'custom' ? 'grid' : 'none';
+    const ci = r?.customInterval || {};
+    const cc = r?.cycleConfig || {};
+    const hasTime = !!r?.timeOfDay;
+
+    const showScheduled = !isStanding ? 'block' : 'none';
+    const showStanding  = isStanding  ? 'block' : 'none';
+    const showCustomInterval = freq === 'custom' ? 'grid' : 'none';
     const showTime2 = freq === 'twice_daily' ? 'block' : 'none';
     const showFlexSection = (freq === 'once_weekly' || freq === 'custom') ? 'block' : 'none';
     const showWindowRow = r?.flexibleCycle ? 'block' : 'none';
-
-    // For once_weekly + flexible, interval is fixed at 1 week — don't show custom interval row
-    const showCustomInterval = freq === 'custom' ? 'grid' : 'none';
-
-    const ci = r?.customInterval || {};
-    const cc = r?.cycleConfig || {};
+    const showTimeInputs = hasTime ? 'grid' : 'none';
 
     const html = `
       <div class="form-group">
@@ -848,67 +999,116 @@ const App = {
         <label class="form-label">Description</label>
         <textarea class="form-textarea" id="f-desc" placeholder="Optional details...">${r?.description || ''}</textarea>
       </div>
+
+      ${!isEdit ? `
       <div class="form-group">
-        <label class="form-label">Frequency</label>
-        <select class="form-select" id="f-freq" onchange="App.onFreqChange()">
-          <option value="daily" ${freq==='daily'?'selected':''}>Daily</option>
-          <option value="twice_daily" ${freq==='twice_daily'?'selected':''}>Twice Daily</option>
-          <option value="once_weekly" ${freq==='once_weekly'?'selected':''}>Once Weekly</option>
-          <option value="custom" ${freq==='custom'?'selected':''}>Custom (every X days/weeks)</option>
-        </select>
-      </div>
-      <div id="f-custom-row" class="form-row" style="display:${showCustomInterval}">
-        <div class="form-group">
-          <label class="form-label">Every</label>
-          <input class="form-input" id="f-interval-val" type="number" min="1" value="${ci.value || 1}">
+        <label class="form-label">Type</label>
+        <div class="checkbox-group" id="f-type-group">
+          <div class="checkbox-option ${!isStanding?'selected':''}" onclick="App.onTypeChange('scheduled')" id="f-type-scheduled">Scheduled</div>
+          <div class="checkbox-option ${isStanding?'selected':''}"  onclick="App.onTypeChange('standing')"  id="f-type-standing">Standing</div>
         </div>
+        <input type="hidden" id="f-type" value="${type}">
+      </div>` : `<input type="hidden" id="f-type" value="${type}">`}
+
+      <!-- SCHEDULED FIELDS -->
+      <div id="f-scheduled-fields" style="display:${showScheduled}">
         <div class="form-group">
-          <label class="form-label">Unit</label>
-          <select class="form-select" id="f-interval-unit">
-            <option value="days" ${ci.unit==='days'?'selected':''}>Days</option>
-            <option value="weeks" ${ci.unit==='weeks'||!ci.unit?'selected':''}>Weeks</option>
+          <label class="form-label">Frequency</label>
+          <select class="form-select" id="f-freq" onchange="App.onFreqChange()">
+            <option value="daily" ${freq==='daily'?'selected':''}>Daily</option>
+            <option value="twice_daily" ${freq==='twice_daily'?'selected':''}>Twice Daily</option>
+            <option value="once_weekly" ${freq==='once_weekly'?'selected':''}>Once Weekly</option>
+            <option value="custom" ${freq==='custom'?'selected':''}>Custom (every X days/weeks)</option>
           </select>
         </div>
-      </div>
-      <div class="form-row">
+        <div id="f-custom-row" class="form-row" style="display:${showCustomInterval}">
+          <div class="form-group">
+            <label class="form-label">Every</label>
+            <input class="form-input" id="f-interval-val" type="number" min="1" value="${ci.value || 1}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit</label>
+            <select class="form-select" id="f-interval-unit">
+              <option value="days" ${ci.unit==='days'?'selected':''}>Days</option>
+              <option value="weeks" ${ci.unit==='weeks'||!ci.unit?'selected':''}>Weeks</option>
+            </select>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label">Time of Day</label>
-          <input class="form-input" id="f-time" type="time" value="${r?.timeOfDay || '09:00'}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+              <input type="checkbox" id="f-time-specific" ${hasTime?'checked':''} onchange="App.onTimeSpecificChange()">
+              Specify time
+            </label>
+          </div>
+          <div id="f-time-inputs" class="form-row" style="display:${showTimeInputs}">
+            <div class="form-group" style="margin-bottom:0;">
+              <input class="form-input" id="f-time" type="time" value="${r?.timeOfDay || '09:00'}">
+            </div>
+            <div class="form-group" id="f-time2-group" style="display:${showTime2};margin-bottom:0;">
+              <label class="form-label">Second Time</label>
+              <input class="form-input" id="f-time2" type="time" value="${r?.timeOfDay2 || '21:00'}">
+            </div>
+          </div>
         </div>
-        <div class="form-group" id="f-time2-group" style="display:${showTime2}">
-          <label class="form-label">Second Time</label>
-          <input class="form-input" id="f-time2" type="time" value="${r?.timeOfDay2 || '21:00'}">
+        <div id="f-flex-section" style="display:${showFlexSection}">
+          <div class="form-group">
+            <label class="form-label" style="margin-bottom:8px;">Flexible Window</label>
+            <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
+              <div style="flex:1;">
+                <div style="font-size:14px;font-weight:600;">Enable flexible window</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Complete anytime within a window of days per cycle</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="f-flex-cycle" ${r?.flexibleCycle?'checked':''} onchange="App.onFlexCycleChange()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div id="f-window-row" class="form-group" style="display:${showWindowRow}">
+            <label class="form-label">Window Length (days)</label>
+            <input class="form-input" id="f-window-days" type="number" min="1" max="30"
+              value="${cc.windowDays || 3}" placeholder="e.g. 3">
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Days you have each cycle to complete this reminder</p>
+          </div>
         </div>
-      </div>
-      <div id="f-flex-section" style="display:${showFlexSection}">
+        ${isEdit ? `
         <div class="form-group">
-          <label class="form-label" style="margin-bottom:8px;">Flexible Window</label>
+          <label class="form-label">Status</label>
+          <select class="form-select" id="f-active">
+            <option value="true" ${r?.active?'selected':''}>Active</option>
+            <option value="false" ${!r?.active?'selected':''}>Paused</option>
+          </select>
+        </div>` : ''}
+      </div>
+
+      <!-- STANDING FIELDS -->
+      <div id="f-standing-fields" style="display:${showStanding}">
+        <div class="form-group">
+          <label class="form-label">Importance</label>
+          <select class="form-select" id="f-importance">
+            <option value="critical" ${(r?.importance||'medium')==='critical'?'selected':''}>🔴 Critical</option>
+            <option value="high"     ${(r?.importance||'medium')==='high'    ?'selected':''}>🟠 High</option>
+            <option value="medium"   ${(r?.importance||'medium')==='medium'  ?'selected':''}>🔵 Medium</option>
+            <option value="low"      ${(r?.importance||'medium')==='low'     ?'selected':''}>⚪ Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="margin-bottom:8px;">Show on Home Page</label>
           <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
             <div style="flex:1;">
-              <div style="font-size:14px;font-weight:600;">Enable flexible window</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Complete anytime within a window of days per cycle</div>
+              <div style="font-size:14px;font-weight:600;">Show on home page</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Appears in Today's Reminders on the home screen</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="f-flex-cycle" ${r?.flexibleCycle?'checked':''} onchange="App.onFlexCycleChange()">
+              <input type="checkbox" id="f-show-home" ${r?.showOnHome !== false ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
         </div>
-        <div id="f-window-row" class="form-group" style="display:${showWindowRow}">
-          <label class="form-label">Window Length (days)</label>
-          <input class="form-input" id="f-window-days" type="number" min="1" max="30"
-            value="${cc.windowDays || 3}" placeholder="e.g. 3">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Days you have each cycle to complete this reminder</p>
-        </div>
       </div>
-      ${isEdit ? `
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select class="form-select" id="f-active">
-          <option value="true" ${r?.active?'selected':''}>Active</option>
-          <option value="false" ${!r?.active?'selected':''}>Paused</option>
-        </select>
-      </div>` : ''}
+
       <div class="form-actions">
         <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
         <button class="btn btn-primary" onclick="App.saveReminder('${editId||''}')">${isEdit?'Update':'Add Reminder'}</button>
@@ -921,10 +1121,28 @@ const App = {
     this.openModal(isEdit ? 'Edit Reminder' : 'New Reminder', html);
   },
 
+  onTypeChange(type) {
+    document.getElementById('f-type').value = type;
+    document.getElementById('f-type-scheduled').classList.toggle('selected', type === 'scheduled');
+    document.getElementById('f-type-standing').classList.toggle('selected', type === 'standing');
+    document.getElementById('f-scheduled-fields').style.display = type === 'scheduled' ? 'block' : 'none';
+    document.getElementById('f-standing-fields').style.display  = type === 'standing'  ? 'block' : 'none';
+  },
+
+  onTimeSpecificChange() {
+    const checked = document.getElementById('f-time-specific').checked;
+    document.getElementById('f-time-inputs').style.display = checked ? 'grid' : 'none';
+  },
+
   onFreqChange() {
     const freq = document.getElementById('f-freq').value;
     document.getElementById('f-custom-row').style.display = freq === 'custom' ? 'grid' : 'none';
-    document.getElementById('f-time2-group').style.display = freq === 'twice_daily' ? 'block' : 'none';
+    const timeInputs = document.getElementById('f-time-inputs');
+    const timeSpecific = document.getElementById('f-time-specific');
+    if (timeInputs && timeSpecific?.checked) {
+      const t2 = document.getElementById('f-time2-group');
+      if (t2) t2.style.display = freq === 'twice_daily' ? 'block' : 'none';
+    }
     const showFlex = freq === 'once_weekly' || freq === 'custom';
     document.getElementById('f-flex-section').style.display = showFlex ? 'block' : 'none';
     if (!showFlex) {
@@ -943,50 +1161,71 @@ const App = {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Please enter a name.'); return; }
 
-    const freq = document.getElementById('f-freq').value;
+    const type = document.getElementById('f-type')?.value || 'scheduled';
     const description = document.getElementById('f-desc').value.trim();
-    const timeOfDay = document.getElementById('f-time').value || null;
-    const timeOfDay2 = freq === 'twice_daily'
-      ? (document.getElementById('f-time2')?.value || null)
-      : null;
+    const existing = editId ? (this._remindersCache || []).find(r => r.id === editId) : null;
 
-    let customInterval = null;
-    if (freq === 'custom') {
-      const val = parseInt(document.getElementById('f-interval-val')?.value) || 1;
-      const unit = document.getElementById('f-interval-unit')?.value || 'days';
-      customInterval = { value: val, unit };
-    }
+    let reminder;
 
-    const flexEl = document.getElementById('f-flex-cycle');
-    const flexibleCycle = flexEl ? flexEl.checked : false;
+    if (type === 'standing') {
+      const importance = document.getElementById('f-importance')?.value || 'medium';
+      const showOnHome = document.getElementById('f-show-home')?.checked !== false;
+      reminder = {
+        id: editId || U.id(),
+        name, description: description || null,
+        type: 'standing',
+        frequency: 'standing', customInterval: null,
+        timeOfDay: null, timeOfDay2: null,
+        flexibleCycle: false, cycleConfig: null,
+        importance, showOnHome,
+        completedAt: existing?.completedAt || null,
+        active: true,
+        startDate: existing?.startDate || U.today()
+      };
+    } else {
+      const freq = document.getElementById('f-freq').value;
+      const timeSpecific = document.getElementById('f-time-specific')?.checked;
+      const timeOfDay = timeSpecific ? (document.getElementById('f-time')?.value || null) : null;
+      const timeOfDay2 = (timeSpecific && freq === 'twice_daily')
+        ? (document.getElementById('f-time2')?.value || null)
+        : null;
 
-    let cycleConfig = null;
-    if (flexibleCycle && (freq === 'once_weekly' || freq === 'custom')) {
-      const windowDays = parseInt(document.getElementById('f-window-days')?.value) || 3;
-      if (freq === 'once_weekly') {
-        cycleConfig = { intervalValue: 1, intervalUnit: 'weeks', windowDays };
-      } else {
+      let customInterval = null;
+      if (freq === 'custom') {
         const val = parseInt(document.getElementById('f-interval-val')?.value) || 1;
         const unit = document.getElementById('f-interval-unit')?.value || 'days';
-        cycleConfig = { intervalValue: val, intervalUnit: unit, windowDays };
+        customInterval = { value: val, unit };
       }
+
+      const flexEl = document.getElementById('f-flex-cycle');
+      const flexibleCycle = flexEl ? flexEl.checked : false;
+      let cycleConfig = null;
+      if (flexibleCycle && (freq === 'once_weekly' || freq === 'custom')) {
+        const windowDays = parseInt(document.getElementById('f-window-days')?.value) || 3;
+        if (freq === 'once_weekly') {
+          cycleConfig = { intervalValue: 1, intervalUnit: 'weeks', windowDays };
+        } else {
+          const val = parseInt(document.getElementById('f-interval-val')?.value) || 1;
+          const unit = document.getElementById('f-interval-unit')?.value || 'days';
+          cycleConfig = { intervalValue: val, intervalUnit: unit, windowDays };
+        }
+      }
+
+      const active = editId ? document.getElementById('f-active')?.value !== 'false' : true;
+      reminder = {
+        id: editId || U.id(),
+        name, description: description || null,
+        type: 'scheduled',
+        frequency: freq, customInterval,
+        timeOfDay, timeOfDay2,
+        flexibleCycle, cycleConfig,
+        importance: existing?.importance || 'medium',
+        showOnHome: existing?.showOnHome !== false,
+        completedAt: null,
+        active,
+        startDate: existing?.startDate || U.today()
+      };
     }
-
-    const active = editId
-      ? document.getElementById('f-active')?.value !== 'false'
-      : true;
-
-    const reminder = {
-      id: editId || U.id(),
-      name, description: description || null,
-      frequency: freq, customInterval,
-      timeOfDay, timeOfDay2,
-      flexibleCycle, cycleConfig,
-      active,
-      startDate: editId
-        ? ((this._remindersCache || []).find(r => r.id === editId)?.startDate || U.today())
-        : U.today()
-    };
 
     try {
       await DB.saveReminder(reminder);
@@ -994,9 +1233,10 @@ const App = {
       await this.refresh();
       if (editId && this.currentTab === 'detail') {
         await this.Detail.show(editId);
+      } else if (type === 'standing') {
+        this.switchTab('standing');
       } else {
-        await this.Active.render();
-        if (this.currentTab !== 'active') this.switchTab('active');
+        this.switchTab('active');
       }
     } catch (e) {
       alert('Failed to save. Please try again.');
