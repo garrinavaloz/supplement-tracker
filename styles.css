@@ -807,6 +807,136 @@ html, body {
   line-height: 1.4;
 }
 
+/* ========== REMINDERS PAGE ========== */
+#reminders-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.reminders-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.reminders-tab.active {
+  background: var(--accent-blue-dim);
+  color: var(--accent-blue);
+}
+
+/* Due-item row in Active view */
+.reminder-due-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+.reminder-due-item.reminder-done {
+  opacity: 0.45;
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.05);
+}
+.reminder-check-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  color: transparent;
+}
+.reminder-check-btn:hover { border-color: var(--accent); }
+.reminder-check-btn.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a12;
+}
+.reminder-item-info { flex: 1; cursor: pointer; }
+.reminder-item-name { font-size: 14px; font-weight: 600; }
+.reminder-item-detail { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.reminder-time-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-blue);
+  background: var(--accent-blue-dim);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 3px;
+}
+
+/* Calendar special states for reminders */
+.cal-day.reminder-in-window {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--warning);
+}
+.cal-day.reminder-due {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--warning);
+  border: 2px solid var(--warning);
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  transition: 0.2s;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: '';
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(18px);
+  background: var(--accent);
+}
+
 /* ========== STUB PAGES ========== */
 .stub-container {
   display: flex;
