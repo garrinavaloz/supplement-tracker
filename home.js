@@ -151,6 +151,61 @@ async function getAllReminderLogs() {
   return data || [];
 }
 
+async function getTodaysWorkout(todayStr) {
+  // Fetch active split
+  const { data: splits, error: sErr } = await sb.from('workout_splits')
+    .select('*').eq('is_active', true).limit(1);
+  if (sErr || !splits?.length) return null;
+  const split = splits[0];
+
+  // Fetch its days
+  const { data: days, error: dErr } = await sb.from('split_days')
+    .select('*').eq('split_id', split.id).order('order_index');
+  if (dErr || !days?.length) return null;
+
+  // Compute scheduled day
+  const dayKeys = ['sun','mon','tue','wed','thu','fri','sat'];
+  let day = null;
+  if (split.schedule_type === 'days_of_week') {
+    const [y, m, d] = todayStr.split('-').map(Number);
+    const key = dayKeys[new Date(y, m-1, d).getDay()];
+    day = days.find(x => x.day_key === key);
+  } else {
+    if (!split.sequential_anchor_date) return null;
+    const [y1,m1,d1] = split.sequential_anchor_date.split('-').map(Number);
+    const [y2,m2,d2] = todayStr.split('-').map(Number);
+    const diff = Math.floor((new Date(y2,m2-1,d2) - new Date(y1,m1-1,d1)) / 86400000);
+    if (diff < 0) return null;
+    day = days[diff % days.length];
+  }
+  if (!day) return null;
+  if (day.is_rest) return { isRest: true, dayName: day.name, splitName: split.name };
+
+  // Fetch workouts for that day
+  const { data: workouts, error: wErr } = await sb.from('workouts')
+    .select('*').eq('split_day_id', day.id).order('order_index');
+  if (wErr || !workouts?.length) return { isRest: false, dayName: day.name, splitName: split.name, workouts: [] };
+
+  // Fetch today's logs to know which are done/in-progress
+  const { data: logs } = await sb.from('workout_logs')
+    .select('id,workout_id,completed_at').eq('date', todayStr);
+  const logByWorkout = {};
+  (logs || []).forEach(l => { logByWorkout[l.workout_id] = l; });
+
+  return {
+    isRest: false, dayName: day.name, splitName: split.name,
+    workouts: workouts.map(w => {
+      const log = logByWorkout[w.id];
+      return {
+        id: w.id, name: w.name, muscleGroups: w.muscle_groups || [],
+        logId: log?.id || null,
+        completed: !!log?.completed_at,
+        inProgress: !!log && !log.completed_at
+      };
+    })
+  };
+}
+
 async function getOverdueContacts(today) {
   const { data, error } = await sb.from('contacts')
     .select('id,name,relationship,contact_method,next_contact_date,show_on_home')
@@ -183,9 +238,32 @@ function renderHeaderDate() {
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts) {
+function renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts, todaysWorkout) {
   const container = document.getElementById('reminders-list');
   let html = '';
+
+  // --- Today's workout (Fitness) ---
+  if (todaysWorkout && !todaysWorkout.isRest && todaysWorkout.workouts?.length) {
+    for (const w of todaysWorkout.workouts) {
+      if (w.completed) continue;
+      const muscles = w.muscleGroups.slice(0, 3).join(', ');
+      const badge = w.inProgress
+        ? `<span class="card-badge badge-yellow">In Progress</span>`
+        : `<span class="card-badge" style="background:rgba(74,222,128,0.15);color:var(--accent);">Ready</span>`;
+      const href = w.inProgress && w.logId
+        ? `fitness.html?mode=workouts&view=track&id=${encodeURIComponent(w.logId)}`
+        : `fitness.html?mode=workouts`;
+      html += `
+        <a href="${href}" class="home-reminder-item" style="margin-bottom:6px;">
+          <div class="home-reminder-dot" style="background:var(--accent);"></div>
+          <div class="home-reminder-info">
+            <span class="home-reminder-name">🏋️ ${w.name}</span>
+            <span class="home-reminder-dose">${todaysWorkout.dayName}${muscles ? ' · ' + muscles : ''}</span>
+          </div>
+          ${badge}
+        </a>`;
+    }
+  }
 
   // --- Overdue contacts (Networking) ---
   for (const c of (overdueContacts || [])) {
@@ -315,19 +393,20 @@ function renderReminders(supplements, suppLogs, weightLogged, today, customRemin
 // ===== INIT =====
 async function init() {
   const today = U.today();
-  const [supplements, suppLogs, weightLogged, customReminders, reminderLogsToday, allReminderLogs, overdueContacts] = await Promise.all([
+  const [supplements, suppLogs, weightLogged, customReminders, reminderLogsToday, allReminderLogs, overdueContacts, todaysWorkout] = await Promise.all([
     getSupplements(),
     getLogsForDate(today),
     getWeightLoggedToday(today),
     getCustomReminders(),
     getReminderLogsForDate(today),
     getAllReminderLogs(),
-    getOverdueContacts(today)
+    getOverdueContacts(today),
+    getTodaysWorkout(today).catch(() => null)
   ]);
 
   renderGreeting();
   renderHeaderDate();
-  renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts);
+  renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts, todaysWorkout);
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('app-header').style.display = '';

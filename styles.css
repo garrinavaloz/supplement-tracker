@@ -1015,3 +1015,284 @@ html, body {
   max-width: 260px;
   margin-bottom: 24px;
 }
+
+/* ========== FITNESS MODE TABS ========== */
+#fitness-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px 6px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.fitness-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex: 1;
+  justify-content: center;
+}
+.fitness-mode-tab.active {
+  background: rgba(96,165,250,0.15);
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+/* ========== WORKOUT TABS ========== */
+#workout-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.workout-tab.active {
+  background: rgba(96,165,250,0.15);
+  color: var(--accent-blue);
+}
+
+/* ========== WORKOUT TODAY CARD ========== */
+.workout-today-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.workout-rest-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 16px;
+  text-align: center;
+}
+
+/* ========== MUSCLE / DAY CHIPS ========== */
+.w-muscle-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: rgba(96,165,250,0.13);
+  color: var(--accent-blue);
+  font-size: 11px;
+  font-weight: 600;
+}
+.w-day-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+.w-day-chip.rest {
+  background: transparent;
+  color: var(--text-muted);
+  border-style: dashed;
+}
+.w-mg-chip {
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+}
+
+/* ========== SCHEDULE EDIT ROWS ========== */
+.w-sched-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.w-sched-day-label {
+  width: 34px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.w-sched-name { font-size: 13px; padding: 8px 10px; }
+.w-sched-rest {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ========== SPLIT CARD ========== */
+.workout-split-card.active {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(74,222,128,0.06), transparent);
+}
+
+/* ========== EXERCISE CARD ========== */
+.workout-ex-card {
+  padding: 12px 14px;
+}
+.w-ex-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.w-ex-stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.w-ex-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.w-ex-stat-lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ========== TRACKING ========== */
+.workout-track-ex {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.workout-track-ex-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+.workout-track-sets {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+.w-track-chev {
+  font-size: 16px;
+  color: var(--text-muted);
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+.workout-track-set-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.workout-track-set-row:last-of-type { border-bottom: none; }
+.workout-track-set-num {
+  width: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.workout-track-set-target {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 56px;
+  flex-shrink: 0;
+}
+.workout-track-set-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+  text-align: center;
+}
+.w-set-x {
+  color: var(--text-muted);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* ========== WORKOUT CALENDAR (consistency + PR) ========== */
+.workout-cal-day {
+  position: relative;
+}
+.workout-cal-day.perfect {
+  background: rgba(74,222,128,0.18);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.cal-workout-dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.cal-pr-star {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 10px;
+  color: var(--warning);
+}
+
+/* ========== MUSCLE GROUP FREQUENCY BARS ========== */
+.w-mg-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.w-mg-bar-label {
+  width: 80px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.w-mg-bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-input);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.w-mg-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent));
+  border-radius: 5px;
+  transition: width 0.25s ease;
+}
+.w-mg-bar-count {
+  min-width: 24px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+/* ========== WORKOUT MODAL (reuse .modal styles) ========== */
+#w-modal-overlay, #w-modal { z-index: 100; }
+
+/* Scope view display inside workout-mode */
+#workout-mode #view-wt-content { display: block; }

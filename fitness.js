@@ -63,6 +63,8 @@ async function deleteWeightLog(id) {
 // ===== STATE =====
 let allLogs = [];
 let activeTab = 'log';
+let activeMode = 'weight';
+let workoutInitialized = false;
 let graphChart = null;
 let calDate = new Date();
 let selectedCalDay = null;
@@ -70,11 +72,39 @@ let graphPeriod = '1M';
 let graphCustomStart = '';
 let graphCustomEnd = '';
 
+// ===== MODE SWITCHING =====
+async function switchFitnessMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll('.fitness-mode-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  const weightMode = document.getElementById('weight-mode');
+  const workoutMode = document.getElementById('workout-mode');
+  const weightTabs = document.getElementById('fitness-tabs');
+  const workoutTabs = document.getElementById('workout-tabs');
+
+  if (mode === 'weight') {
+    weightMode.style.display = '';
+    workoutMode.style.display = 'none';
+    weightTabs.style.display = '';
+    workoutTabs.style.display = 'none';
+  } else {
+    weightMode.style.display = 'none';
+    workoutMode.style.display = '';
+    weightTabs.style.display = 'none';
+    workoutTabs.style.display = '';
+    if (!workoutInitialized && typeof W !== 'undefined') {
+      workoutInitialized = true;
+      await W.init();
+    } else if (typeof W !== 'undefined') {
+      W.switchView(W.currentView || 'today');
+    }
+  }
+}
+
 // ===== TAB SWITCHING =====
 function switchFitnessTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.fitness-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.fitness-tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('#weight-mode .view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + tab).classList.add('active');
   if (tab === 'calendar') renderCalendarView();
   else if (tab === 'graph') renderGraphView();
@@ -678,6 +708,7 @@ async function init() {
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('app-header').style.display = '';
+  document.getElementById('fitness-mode-tabs').style.display = '';
   document.getElementById('fitness-tabs').style.display = '';
   document.getElementById('main-content').style.display = '';
 
@@ -708,6 +739,20 @@ alter table weight_logs disable row level security;</pre>
 
   allLogs = await getWeightLogs();
   renderLogTab();
+
+  // Deep-link: ?mode=workouts or ?view=track&id=...
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode');
+  const view = params.get('view');
+  const id = params.get('id');
+  if (mode === 'workouts' || view) {
+    await switchFitnessMode('workouts');
+    if (view === 'track' && id && typeof W !== 'undefined') {
+      W.Track.open(id);
+    } else if (view && typeof W !== 'undefined') {
+      W.switchView(view);
+    }
+  }
 }
 
 init();
