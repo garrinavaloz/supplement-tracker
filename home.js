@@ -151,6 +151,16 @@ async function getAllReminderLogs() {
   return data || [];
 }
 
+async function getOverdueContacts(today) {
+  const { data, error } = await sb.from('contacts')
+    .select('id,name,relationship,contact_method,next_contact_date,show_on_home')
+    .eq('stay_in_contact', true)
+    .eq('show_on_home', true)
+    .lte('next_contact_date', today);
+  if (error) return [];
+  return data || [];
+}
+
 // ===== RENDER =====
 function renderGreeting() {
   const hour = new Date().getHours();
@@ -173,9 +183,24 @@ function renderHeaderDate() {
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs) {
+function renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts) {
   const container = document.getElementById('reminders-list');
   let html = '';
+
+  // --- Overdue contacts (Networking) ---
+  for (const c of (overdueContacts || [])) {
+    const daysOver = Math.round((new Date(today) - new Date(c.next_contact_date)) / 86400000);
+    const method = { text: '💬', call: '📞', meet: '🤝' }[c.contact_method] || '👤';
+    html += `
+      <a href="networking.html" class="home-reminder-item" style="margin-bottom:6px;">
+        <div class="home-reminder-dot" style="background:#a78bfa;"></div>
+        <div class="home-reminder-info">
+          <span class="home-reminder-name">${method} ${c.name}</span>
+          <span class="home-reminder-dose">${daysOver === 0 ? 'Due today' : daysOver + 'd overdue'} · Networking</span>
+        </div>
+        <span class="card-badge" style="background:rgba(167,139,250,0.15);color:#a78bfa;">Reach out</span>
+      </a>`;
+  }
 
   // --- Weight reminder ---
   if (!weightLogged) {
@@ -290,18 +315,19 @@ function renderReminders(supplements, suppLogs, weightLogged, today, customRemin
 // ===== INIT =====
 async function init() {
   const today = U.today();
-  const [supplements, suppLogs, weightLogged, customReminders, reminderLogsToday, allReminderLogs] = await Promise.all([
+  const [supplements, suppLogs, weightLogged, customReminders, reminderLogsToday, allReminderLogs, overdueContacts] = await Promise.all([
     getSupplements(),
     getLogsForDate(today),
     getWeightLoggedToday(today),
     getCustomReminders(),
     getReminderLogsForDate(today),
-    getAllReminderLogs()
+    getAllReminderLogs(),
+    getOverdueContacts(today)
   ]);
 
   renderGreeting();
   renderHeaderDate();
-  renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs);
+  renderReminders(supplements, suppLogs, weightLogged, today, customReminders, reminderLogsToday, allReminderLogs, overdueContacts);
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('app-header').style.display = '';
