@@ -123,7 +123,10 @@ const U = {
     while (windowStart <= today && safety < 1000) {
       safety++;
       const windowEnd = this.addDays(windowStart, windowDays - 1);
-      const completion = completions.find(l => l.date >= windowStart && l.date <= windowEnd);
+      // Search the full interval period — a retroactive log anywhere in the period
+      // (not just within the window) counts and advances the schedule from that date.
+      const periodEnd = this.addDays(windowStart, intervalDays - 1);
+      const completion = completions.find(l => l.date >= windowStart && l.date <= periodEnd);
 
       windows.push({
         windowStart,
@@ -189,19 +192,26 @@ const U = {
   },
 
   // For calendar rendering: returns the status of a date for a specific reminder.
-  // Returns: 'completed' | 'missed' | 'in-window' | 'scheduled' | 'off' | 'window-upcoming'
+  // Returns: 'completed' | 'missed' | 'in-window' | 'scheduled' | 'off' | 'window-upcoming' | 'due-today'
   getDayStatus(reminder, dateStr, rLogs, allLogs) {
     if (!reminder.active && dateStr > reminder.startDate) return 'off';
     const today = this.today();
     const isPast = dateStr < today;
     const isToday = dateStr === today;
+    const logsToCheck = allLogs || rLogs;
+
+    // A logged completion on ANY date shows as completed — check first before schedule logic.
+    const doses = reminder.frequency === 'twice_daily' ? 2 : 1;
+    let takenCount = 0;
+    for (let i = 0; i < doses; i++) {
+      if (this.isCompleted(reminder.id, dateStr, i, logsToCheck)) takenCount++;
+    }
+    if (takenCount > 0) return 'completed';
 
     if (reminder.flexibleCycle && reminder.cycleConfig) {
       const windows = this.computeWindowHistory(reminder, rLogs);
       const win = windows.find(w => dateStr >= w.windowStart && dateStr <= w.windowEnd);
       if (!win) return 'off';
-      if (win.completionDate === dateStr) return 'completed';
-      if (win.completed && dateStr !== win.completionDate) return 'off';
       if (win.isCurrent) return 'in-window';
       if (win.isPast) return 'missed';
       return 'window-upcoming';
@@ -209,13 +219,6 @@ const U = {
 
     const due = this.isReminderDue(reminder, dateStr, rLogs);
     if (!due) return 'off';
-    const doses = reminder.frequency === 'twice_daily' ? 2 : 1;
-    const logsToCheck = allLogs || rLogs;
-    let takenCount = 0;
-    for (let i = 0; i < doses; i++) {
-      if (this.isCompleted(reminder.id, dateStr, i, logsToCheck)) takenCount++;
-    }
-    if (takenCount === doses) return 'completed';
     if (isPast) return 'missed';
     if (isToday) return 'due-today';
     return 'scheduled';
@@ -883,40 +886,47 @@ const App = {
       const isToday = dateStr === today;
       let html = `<div class="cal-detail-date">${U.formatDisplay(dateStr)}</div>`;
 
+      // Future dates — display only, no editing
+      if (dateStr > today) {
+        const status = U.getDayStatus(reminder, dateStr, rLogs, logs);
+        if (status === 'window-upcoming') {
+          html += '<div style="margin-bottom:12px;"><span class="card-badge badge-blue">Upcoming Window</span></div>';
+        } else if (status === 'scheduled') {
+          html += '<div style="margin-bottom:12px;"><span class="card-badge badge-blue">Scheduled</span></div>';
+        } else {
+          html += '<p class="text-muted" style="font-size:13px;">Not scheduled on this day.</p>';
+        }
+        return html;
+      }
+
+      // Past / today — always allow marking done regardless of whether it was in a window.
       const status = U.getDayStatus(reminder, dateStr, rLogs, logs);
-
-      if (status === 'off') {
-        html += '<p class="text-muted" style="font-size:13px;">Not scheduled on this day.</p>';
-        return html;
-      }
-
-      if (status === 'window-upcoming' || status === 'scheduled') {
-        html += '<div style="margin-bottom:12px;"><span class="card-badge badge-blue">Upcoming</span></div>';
-        return html;
-      }
-
       const doses = reminder.frequency === 'twice_daily' ? 2 : 1;
+
       for (let i = 0; i < doses; i++) {
         const done = U.isCompleted(reminder.id, dateStr, i, logs);
         const doseLabel = doses > 1 ? (i === 0 ? 'Morning dose' : 'Evening dose') : '';
-        const badge = done
-          ? '<span class="card-badge badge-green">Done</span>'
-          : isPast ? '<span class="card-badge badge-red">Missed</span>'
-          : status === 'in-window' ? '<span class="card-badge badge-blue">In Window</span>'
-          : '<span class="card-badge badge-yellow">Pending</span>';
 
-        html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        let badge;
+        if (done) badge = '<span class="card-badge badge-green">Done</span>';
+        else if (status === 'in-window' || status === 'due-today') badge = '<span class="card-badge badge-yellow">Pending</span>';
+        else if (status === 'missed') badge = '<span class="card-badge badge-red">Missed</span>';
+        else badge = ''; // off-schedule date
+
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span style="font-size:14px;font-weight:500;">${doseLabel || reminder.name}</span>
           ${badge}
         </div>`;
 
-        if (isPast || isToday || status === 'in-window') {
-          html += `<button class="btn ${done ? 'btn-secondary' : 'btn-primary'} btn-sm"
-            style="margin-bottom:12px;${done ? 'color:var(--text-secondary);' : ''}"
-            onclick="App.Detail.toggleDay('${reminder.id}','${dateStr}',${i})">
-            ${done ? 'Undo completion' : 'Mark as done'}
-          </button>`;
+        if (status === 'off' && !done) {
+          html += `<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Outside scheduled window — logging here will advance the forward schedule from this date.</p>`;
         }
+
+        html += `<button class="btn ${done ? 'btn-secondary' : 'btn-primary'} btn-sm"
+          style="margin-bottom:12px;"
+          onclick="App.Detail.toggleDay('${reminder.id}','${dateStr}',${i})">
+          ${done ? 'Undo completion' : 'Mark as done'}
+        </button>`;
       }
 
       return html;
