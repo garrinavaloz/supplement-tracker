@@ -23,7 +23,7 @@ const DB = {
       description: c.description, stay_in_contact: c.stayInContact,
       contact_frequency: c.contactFrequency, contact_method: c.contactMethod,
       show_on_home: c.showOnHome, next_contact_date: c.nextContactDate
-    });
+    }, { onConflict: 'id' });
     if (error) { console.error('saveContact:', error); throw error; }
   },
 
@@ -47,12 +47,17 @@ const DB = {
   },
 
   async saveLog(log) {
-    const row = {
-      contact_id: log.contactId, date: log.date,
-      method: log.method, description: log.description
-    };
-    if (log.id) row.id = log.id;
-    const { error } = await sb.from('contact_logs').upsert(row);
+    let error;
+    if (log.id) {
+      ({ error } = await sb.from('contact_logs').update({
+        date: log.date, method: log.method, description: log.description
+      }).eq('id', log.id));
+    } else {
+      ({ error } = await sb.from('contact_logs').insert({
+        contact_id: log.contactId, date: log.date,
+        method: log.method, description: log.description
+      }));
+    }
     if (error) { console.error('saveLog:', error); throw error; }
   },
 
