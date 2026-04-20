@@ -1008,14 +1008,23 @@ const W = {
         html += `<div class="empty-state" style="padding:24px 0;"><p style="font-size:13px;">No exercises yet.</p></div>`;
       } else {
         for (const e of exs) {
-          const wStr = e.isBodyweight ? 'Bodyweight' : (e.weight ? `${e.weight} lbs` : '—');
-          html += `<div class="card workout-ex-card" onclick="W.Exercise.openAddModal('${workout.id}','${e.id}')" style="cursor:pointer;">
-            <div class="card-header"><span class="card-title">${e.orderIndex+1}. ${W.escape(e.name)}</span></div>
-            <div class="w-ex-stats">
+          const isCardioEx = e.exerciseType === 'cardio';
+          let statsHtml;
+          if (isCardioEx) {
+            statsHtml = `
+              ${e.cardioType ? `<div><span class="w-ex-stat-val">${W.escape(e.cardioType)}</span><span class="w-ex-stat-lbl">type</span></div>` : ''}
+              ${e.duration ? `<div><span class="w-ex-stat-val">${e.duration}</span><span class="w-ex-stat-lbl">min</span></div>` : ''}
+              ${e.intensity ? `<div><span class="w-ex-stat-val">${W.escape(e.intensity)}</span><span class="w-ex-stat-lbl">intensity</span></div>` : ''}`;
+          } else {
+            const wStr = e.isBodyweight ? 'Bodyweight' : (e.weight ? `${e.weight} lbs` : '—');
+            statsHtml = `
               <div><span class="w-ex-stat-val">${e.sets}</span><span class="w-ex-stat-lbl">sets</span></div>
               <div><span class="w-ex-stat-val">${e.reps}</span><span class="w-ex-stat-lbl">reps</span></div>
-              <div><span class="w-ex-stat-val">${wStr}</span><span class="w-ex-stat-lbl">start</span></div>
-            </div>
+              <div><span class="w-ex-stat-val">${wStr}</span><span class="w-ex-stat-lbl">start</span></div>`;
+          }
+          html += `<div class="card workout-ex-card" onclick="W.Exercise.openAddModal('${workout.id}','${e.id}')" style="cursor:pointer;">
+            <div class="card-header"><span class="card-title">${e.orderIndex+1}. ${W.escape(e.name)}</span>${isCardioEx ? '<span class="card-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;font-size:10px;">Cardio</span>' : ''}</div>
+            <div class="w-ex-stats">${statsHtml}</div>
             ${e.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">${W.escape(e.notes)}</div>` : ''}
           </div>`;
         }
@@ -1329,7 +1338,7 @@ const W = {
       for (let i = 0; i < groupArr.length; i++) {
         const g = groupArr[i];
         const planned = plannedByEx[g.name];
-        const isCardio = g.exerciseType === 'cardio';
+        const isCardio = g.exerciseType === 'cardio' || planned?.exerciseType === 'cardio';
         const completedSets = isCardio
           ? g.sets.filter(s => s.duration != null).length
           : g.sets.filter(s => s.reps != null && (s.isBodyweight || s.weight != null)).length;
@@ -1390,7 +1399,7 @@ const W = {
     },
 
     _renderSetRow(s, displayNum, planned) {
-      if (s.exerciseType === 'cardio') {
+      if (s.exerciseType === 'cardio' || planned?.exerciseType === 'cardio') {
         const durVal = s.duration != null ? s.duration : '';
         const intVal = s.intensity || '';
         const pl = planned ? `${planned.duration || '?'} min · ${planned.intensity || '—'}` : '';
