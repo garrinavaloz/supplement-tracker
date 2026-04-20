@@ -99,7 +99,11 @@ const W = {
         id: r.id, workoutId: r.workout_id, name: r.name,
         sets: r.sets, reps: r.reps, weight: r.weight,
         isBodyweight: r.is_bodyweight, notes: r.notes,
-        orderIndex: r.order_index, isTemplate: r.is_template
+        orderIndex: r.order_index, isTemplate: r.is_template,
+        exerciseType: r.exercise_type || 'lift',
+        cardioType: r.cardio_type || null,
+        duration: r.duration || null,
+        intensity: r.intensity || null
       }));
     },
     async saveExercise(e) {
@@ -107,7 +111,11 @@ const W = {
         id: e.id, workout_id: e.workoutId || null, name: e.name,
         sets: e.sets, reps: e.reps, weight: e.weight || null,
         is_bodyweight: e.isBodyweight || false, notes: e.notes,
-        order_index: e.orderIndex, is_template: e.isTemplate || false
+        order_index: e.orderIndex, is_template: e.isTemplate || false,
+        exercise_type: e.exerciseType || 'lift',
+        cardio_type: e.cardioType || null,
+        duration: e.duration || null,
+        intensity: e.intensity || null
       }, { onConflict: 'id' });
       if (error) { console.error('saveExercise:', error); throw error; }
     },
@@ -144,7 +152,10 @@ const W = {
         id: r.id, workoutLogId: r.workout_log_id, exerciseId: r.exercise_id,
         exerciseName: r.exercise_name, exerciseOrder: r.exercise_order,
         setNumber: r.set_number, weight: r.weight, isBodyweight: r.is_bodyweight,
-        reps: r.reps, notes: r.notes
+        reps: r.reps, notes: r.notes,
+        exerciseType: r.exercise_type || 'lift',
+        duration: r.duration || null,
+        intensity: r.intensity || null
       }));
     },
     async saveSetLog(s) {
@@ -152,7 +163,10 @@ const W = {
         workout_log_id: s.workoutLogId, exercise_id: s.exerciseId || null,
         exercise_name: s.exerciseName, exercise_order: s.exerciseOrder || 0,
         set_number: s.setNumber, weight: s.weight, is_bodyweight: s.isBodyweight || false,
-        reps: s.reps, notes: s.notes
+        reps: s.reps, notes: s.notes,
+        exercise_type: s.exerciseType || 'lift',
+        duration: s.duration || null,
+        intensity: s.intensity || null
       };
       let error;
       if (s.id) {
@@ -1026,37 +1040,66 @@ const W = {
         orderOpts += `<option value="${i}" ${currentOrderIdx===i?'selected':''}>${i+1}</option>`;
       }
 
+      const isCardio = e?.exerciseType === 'cardio';
       const isBw = e?.isBodyweight || false;
+      const CARDIO_TYPES = ['Cycling', 'Elliptical', 'Running', 'Other'];
 
       const html = `
         <div class="form-group">
           <label class="form-label">Exercise Name</label>
           <input class="form-input" id="e-name" placeholder="e.g., Bench Press" value="${W.escape(e?.name || '')}">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Order</label>
-            <select class="form-select" id="e-order">${orderOpts}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Sets</label>
-            <input class="form-input" id="e-sets" type="number" min="1" value="${e?.sets || 3}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Reps</label>
-            <input class="form-input" id="e-reps" type="number" min="1" value="${e?.reps || 10}">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <div class="checkbox-group">
+            <div class="checkbox-option ${!isCardio?'selected':''}" id="e-type-lift" onclick="W.Exercise._setType('lift')">Lift</div>
+            <div class="checkbox-option ${isCardio?'selected':''}" id="e-type-cardio" onclick="W.Exercise._setType('cardio')">Cardio</div>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Starting Weight</label>
-          <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
-            <div style="flex:1;font-size:14px;font-weight:600;">Bodyweight</div>
-            <label class="toggle-switch"><input type="checkbox" id="e-bw" ${isBw?'checked':''} onchange="W.Exercise._toggleBw()"><span class="toggle-slider"></span></label>
+        <div id="e-lift-fields" style="display:${isCardio?'none':'block'};">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Order</label>
+              <select class="form-select" id="e-order">${orderOpts}</select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sets</label>
+              <input class="form-input" id="e-sets" type="number" min="1" value="${e?.sets || 3}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reps</label>
+              <input class="form-input" id="e-reps" type="number" min="1" value="${e?.reps || 10}">
+            </div>
           </div>
-          <div id="e-weight-wrap" style="display:${isBw?'none':'block'};">
-            <div class="weight-input-wrap">
-              <input class="form-input" id="e-weight" type="number" step="0.5" min="0" placeholder="0" value="${e?.weight || ''}">
-              <span class="weight-unit">lbs</span>
+          <div class="form-group">
+            <label class="form-label">Starting Weight</label>
+            <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+              <div style="flex:1;font-size:14px;font-weight:600;">Bodyweight</div>
+              <label class="toggle-switch"><input type="checkbox" id="e-bw" ${isBw?'checked':''} onchange="W.Exercise._toggleBw()"><span class="toggle-slider"></span></label>
+            </div>
+            <div id="e-weight-wrap" style="display:${isBw?'none':'block'};">
+              <div class="weight-input-wrap">
+                <input class="form-input" id="e-weight" type="number" step="0.5" min="0" placeholder="0" value="${e?.weight || ''}">
+                <span class="weight-unit">lbs</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="e-cardio-fields" style="display:${isCardio?'block':'none'};">
+          <div class="form-group">
+            <label class="form-label">Cardio Type</label>
+            <div class="checkbox-group" style="flex-wrap:wrap;">
+              ${CARDIO_TYPES.map(t => `<div class="checkbox-option ${(e?.cardioType||'').toLowerCase()===t.toLowerCase()?'selected':''}" data-ctype="${t}" onclick="W.Exercise._setCardioType(this)">${t}</div>`).join('')}
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Duration (min)</label>
+              <input class="form-input" id="e-duration" type="number" min="1" placeholder="30" value="${e?.duration || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Intensity</label>
+              <input class="form-input" id="e-intensity" placeholder="e.g., Level 8, Moderate" value="${W.escape(e?.intensity || '')}">
             </div>
           </div>
         </div>
@@ -1073,6 +1116,18 @@ const W = {
       W.openModal(isEdit ? 'Edit Exercise' : 'New Exercise', html);
     },
 
+    _setType(type) {
+      document.getElementById('e-type-lift').classList.toggle('selected', type === 'lift');
+      document.getElementById('e-type-cardio').classList.toggle('selected', type === 'cardio');
+      document.getElementById('e-lift-fields').style.display = type === 'lift' ? 'block' : 'none';
+      document.getElementById('e-cardio-fields').style.display = type === 'cardio' ? 'block' : 'none';
+    },
+
+    _setCardioType(el) {
+      document.querySelectorAll('[data-ctype]').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    },
+
     _toggleBw() {
       const on = document.getElementById('e-bw').checked;
       document.getElementById('e-weight-wrap').style.display = on ? 'none' : 'block';
@@ -1081,12 +1136,27 @@ const W = {
     async save(workoutId, editId) {
       const name = document.getElementById('e-name').value.trim();
       if (!name) { alert('Enter exercise name.'); return; }
-      const sets = parseInt(document.getElementById('e-sets').value) || 3;
-      const reps = parseInt(document.getElementById('e-reps').value) || 10;
-      const isBodyweight = document.getElementById('e-bw').checked;
-      const weight = isBodyweight ? null : (parseFloat(document.getElementById('e-weight').value) || null);
+      const exerciseType = document.getElementById('e-type-cardio').classList.contains('selected') ? 'cardio' : 'lift';
+
+      let sets, reps, isBodyweight, weight, orderIndex, cardioType, duration, intensity;
+      if (exerciseType === 'cardio') {
+        sets = 1; reps = null; isBodyweight = false; weight = null; orderIndex = 0;
+        const ctypeEl = document.querySelector('[data-ctype].selected');
+        cardioType = ctypeEl ? ctypeEl.dataset.ctype : null;
+        duration = parseInt(document.getElementById('e-duration').value) || null;
+        intensity = document.getElementById('e-intensity').value.trim() || null;
+        // get order from existing or end of list
+        const existing2 = W._exercises.find(x => x.id === editId);
+        orderIndex = existing2 ? existing2.orderIndex : W.exercisesForWorkout(workoutId).length;
+      } else {
+        sets = parseInt(document.getElementById('e-sets').value) || 3;
+        reps = parseInt(document.getElementById('e-reps').value) || 10;
+        isBodyweight = document.getElementById('e-bw').checked;
+        weight = isBodyweight ? null : (parseFloat(document.getElementById('e-weight').value) || null);
+        orderIndex = parseInt(document.getElementById('e-order').value);
+        cardioType = null; duration = null; intensity = null;
+      }
       const notes = document.getElementById('e-notes').value.trim() || null;
-      const orderIndex = parseInt(document.getElementById('e-order').value);
 
       const id = editId || W.id();
       const existing = W._exercises.find(x => x.id === editId);
@@ -1094,7 +1164,8 @@ const W = {
 
       try {
         await W.DB.saveExercise({
-          id, workoutId, name, sets, reps, weight, isBodyweight, notes, orderIndex, isTemplate: false
+          id, workoutId, name, sets, reps, weight, isBodyweight, notes, orderIndex, isTemplate: false,
+          exerciseType, cardioType, duration, intensity
         });
 
         if (editId && prevOrder !== orderIndex) {
@@ -1194,12 +1265,22 @@ const W = {
         const exs = W.exercisesForWorkout(w.id);
         for (let i = 0; i < exs.length; i++) {
           const e = exs[i];
-          for (let s = 1; s <= (e.sets || 1); s++) {
+          if (e.exerciseType === 'cardio') {
             await W.DB.saveSetLog({
               workoutLogId: newLog.id, exerciseId: e.id, exerciseName: e.name,
-              exerciseOrder: i, setNumber: s, weight: null,
-              isBodyweight: e.isBodyweight, reps: null, notes: null
+              exerciseOrder: i, setNumber: 1, weight: null,
+              isBodyweight: false, reps: null, notes: null,
+              exerciseType: 'cardio', duration: null, intensity: null
             });
+          } else {
+            for (let s = 1; s <= (e.sets || 1); s++) {
+              await W.DB.saveSetLog({
+                workoutLogId: newLog.id, exerciseId: e.id, exerciseName: e.name,
+                exerciseOrder: i, setNumber: s, weight: null,
+                isBodyweight: e.isBodyweight, reps: null, notes: null,
+                exerciseType: 'lift', duration: null, intensity: null
+              });
+            }
           }
         }
         await W.refresh();
@@ -1222,7 +1303,7 @@ const W = {
       const groups = {};
       for (const s of setLogs) {
         const key = s.exerciseOrder + '|' + s.exerciseName;
-        if (!groups[key]) groups[key] = { order: s.exerciseOrder, name: s.exerciseName, exerciseId: s.exerciseId, sets: [] };
+        if (!groups[key]) groups[key] = { order: s.exerciseOrder, name: s.exerciseName, exerciseId: s.exerciseId, exerciseType: s.exerciseType || 'lift', sets: [] };
         groups[key].sets.push(s);
       }
       const groupArr = Object.values(groups).sort((a, b) => a.order - b.order);
@@ -1248,29 +1329,42 @@ const W = {
       for (let i = 0; i < groupArr.length; i++) {
         const g = groupArr[i];
         const planned = plannedByEx[g.name];
-        const completedSets = g.sets.filter(s => s.reps != null && (s.isBodyweight || s.weight != null)).length;
-        const plannedSets = planned ? planned.sets : g.sets.length;
-        const plannedReps = planned ? planned.reps : '';
-        const plannedWt = planned ? (planned.isBodyweight ? 'BW' : (planned.weight ? planned.weight + ' lbs' : '—')) : '';
+        const isCardio = g.exerciseType === 'cardio';
+        const completedSets = isCardio
+          ? g.sets.filter(s => s.duration != null).length
+          : g.sets.filter(s => s.reps != null && (s.isBodyweight || s.weight != null)).length;
+
+        let statsHtml;
+        if (isCardio) {
+          const planDur = planned?.duration ? `${planned.duration} min` : '';
+          const planInt = planned?.intensity ? W.escape(planned.intensity) : '';
+          statsHtml = `
+            ${planDur ? `<div><span class="w-ex-stat-val">${planDur}</span><span class="w-ex-stat-lbl">planned</span></div>` : ''}
+            ${planInt ? `<div><span class="w-ex-stat-val">${planInt}</span><span class="w-ex-stat-lbl">intensity</span></div>` : ''}
+            <div><span class="w-ex-stat-val" style="color:var(--accent);">${completedSets}/${g.sets.length}</span><span class="w-ex-stat-lbl">done</span></div>`;
+        } else {
+          const plannedReps = planned ? planned.reps : '';
+          const plannedWt = planned ? (planned.isBodyweight ? 'BW' : (planned.weight ? planned.weight + ' lbs' : '—')) : '';
+          statsHtml = `
+            <div><span class="w-ex-stat-val">${g.sets.length}</span><span class="w-ex-stat-lbl">sets</span></div>
+            ${plannedReps ? `<div><span class="w-ex-stat-val">${plannedReps}</span><span class="w-ex-stat-lbl">reps</span></div>` : ''}
+            ${plannedWt ? `<div><span class="w-ex-stat-val">${plannedWt}</span><span class="w-ex-stat-lbl">start</span></div>` : ''}
+            <div><span class="w-ex-stat-val" style="color:var(--accent);">${completedSets}/${g.sets.length}</span><span class="w-ex-stat-lbl">done</span></div>`;
+        }
 
         html += `<div class="workout-track-ex">
           <div class="workout-track-ex-head" onclick="W.Track.toggleEx(${i})">
             <div style="flex:1;">
-              <div style="font-size:16px;font-weight:700;">${i+1}. ${W.escape(g.name)}</div>
-              <div class="w-ex-stats" style="margin-top:6px;">
-                <div><span class="w-ex-stat-val">${g.sets.length}</span><span class="w-ex-stat-lbl">sets</span></div>
-                ${plannedReps ? `<div><span class="w-ex-stat-val">${plannedReps}</span><span class="w-ex-stat-lbl">reps</span></div>` : ''}
-                ${plannedWt ? `<div><span class="w-ex-stat-val">${plannedWt}</span><span class="w-ex-stat-lbl">start</span></div>` : ''}
-                <div><span class="w-ex-stat-val" style="color:var(--accent);">${completedSets}/${g.sets.length}</span><span class="w-ex-stat-lbl">done</span></div>
-              </div>
+              <div style="font-size:16px;font-weight:700;">${i+1}. ${W.escape(g.name)}${isCardio?' <span style="font-size:11px;color:var(--text-muted);font-weight:400;">cardio</span>':''}</div>
+              <div class="w-ex-stats" style="margin-top:6px;">${statsHtml}</div>
             </div>
             <div class="w-track-chev" id="w-track-chev-${i}">▾</div>
           </div>
           <div class="workout-track-sets" id="w-track-sets-${i}">
             ${g.sets.map((s, si) => W.Track._renderSetRow(s, si+1, planned)).join('')}
             <div style="display:flex;gap:6px;margin-top:8px;">
-              <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="W.Track.addSet('${g.sets[0]?.workoutLogId||log.id}','${W.escape(g.name)}', ${g.order}, '${g.exerciseId||''}')">+ Add Set</button>
-              <button class="btn btn-secondary btn-sm" style="color:var(--danger);" onclick="W.Track.removeExercise('${W.escape(g.name)}', ${g.order})">Remove Exercise</button>
+              ${isCardio ? '' : `<button class="btn btn-secondary btn-sm" style="flex:1;" onclick="W.Track.addSet('${g.sets[0]?.workoutLogId||log.id}','${W.escape(g.name)}', ${g.order}, '${g.exerciseId||''}')">+ Add Set</button>`}
+              <button class="btn btn-secondary btn-sm" style="${isCardio?'flex:1;':''}color:var(--danger);" onclick="W.Track.removeExercise('${W.escape(g.name)}', ${g.order})">Remove</button>
             </div>
           </div>
         </div>`;
@@ -1296,6 +1390,20 @@ const W = {
     },
 
     _renderSetRow(s, displayNum, planned) {
+      if (s.exerciseType === 'cardio') {
+        const durVal = s.duration != null ? s.duration : '';
+        const intVal = s.intensity || '';
+        const pl = planned ? `${planned.duration || '?'} min · ${planned.intensity || '—'}` : '';
+        return `<div class="workout-track-set-row" data-setid="${s.id}">
+          <div class="workout-track-set-num">${displayNum}</div>
+          <div class="workout-track-set-target">${pl}</div>
+          <input type="number" class="form-input workout-track-set-input" placeholder="min" value="${durVal}" onchange="W.Track.updateSet(${s.id}, 'duration', this.value)">
+          <span class="w-set-x">@</span>
+          <input type="text" class="form-input workout-track-set-input" placeholder="intensity" value="${W.escape(intVal)}" onchange="W.Track.updateSet(${s.id}, 'intensity', this.value)">
+          <button class="btn-icon btn-sm" onclick="W.Track.addSetNote(${s.id})" title="Notes" style="font-size:14px;">📝</button>
+          <button class="btn-icon btn-sm" onclick="W.Track.deleteSet(${s.id})" style="color:var(--danger);">×</button>
+        </div>`;
+      }
       const weightVal = s.weight != null ? s.weight : '';
       const repsVal = s.reps != null ? s.reps : '';
       const bw = s.isBodyweight;
@@ -1323,6 +1431,8 @@ const W = {
       if (!s) return;
       if (field === 'weight') s.weight = value === '' ? null : parseFloat(value);
       else if (field === 'reps') s.reps = value === '' ? null : parseInt(value);
+      else if (field === 'duration') s.duration = value === '' ? null : parseInt(value);
+      else if (field === 'intensity') s.intensity = value.trim() || null;
       try {
         await W.DB.saveSetLog(s);
       } catch (e) { console.error(e); }
@@ -1373,11 +1483,15 @@ const W = {
       for (const e of W._exercises) { if (!seen.has(e.name)) seen.set(e.name, e); }
       const templates = Array.from(seen.values());
 
-      const tmplHtml = templates.length ? templates.map(e => `
-        <div class="card" onclick="W.Track._addFromTemplate('${e.id}')" style="cursor:pointer;">
+      const tmplHtml = templates.length ? templates.map(e => {
+        const sub = e.exerciseType === 'cardio'
+          ? `Cardio · ${e.cardioType||'—'}${e.duration?' · '+e.duration+' min':''}${e.intensity?' · '+e.intensity:''}`
+          : `${e.sets}×${e.reps} · ${e.isBodyweight?'BW':(e.weight?e.weight+' lbs':'—')}`;
+        return `<div class="card" onclick="W.Track._addFromTemplate('${e.id}')" style="cursor:pointer;">
           <div class="card-header"><span class="card-title">${W.escape(e.name)}</span></div>
-          <div class="card-subtitle">${e.sets}×${e.reps} · ${e.isBodyweight?'BW':(e.weight?e.weight+' lbs':'—')}</div>
-        </div>`).join('') : '<p style="font-size:13px;color:var(--text-muted);">No templates yet.</p>';
+          <div class="card-subtitle">${sub}</div>
+        </div>`;
+      }).join('') : '<p style="font-size:13px;color:var(--text-muted);">No templates yet.</p>';
 
       const html = `
         <div class="fitness-section-label">FROM TEMPLATE</div>
@@ -1387,17 +1501,38 @@ const W = {
           <label class="form-label">Exercise Name</label>
           <input class="form-input" id="t-ex-name" placeholder="e.g., Incline Press">
         </div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Sets</label><input class="form-input" id="t-ex-sets" type="number" min="1" value="3"></div>
-          <div class="form-group"><label class="form-label">Reps</label><input class="form-input" id="t-ex-reps" type="number" min="1" value="10"></div>
-        </div>
         <div class="form-group">
-          <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
-            <div style="flex:1;font-size:14px;font-weight:600;">Bodyweight</div>
-            <label class="toggle-switch"><input type="checkbox" id="t-ex-bw" onchange="document.getElementById('t-ex-wt-wrap').style.display=this.checked?'none':'block'"><span class="toggle-slider"></span></label>
+          <label class="form-label">Type</label>
+          <div class="checkbox-group">
+            <div class="checkbox-option selected" id="t-ex-type-lift" onclick="W.Track._setExType('lift')">Lift</div>
+            <div class="checkbox-option" id="t-ex-type-cardio" onclick="W.Track._setExType('cardio')">Cardio</div>
           </div>
-          <div id="t-ex-wt-wrap">
-            <div class="weight-input-wrap"><input class="form-input" id="t-ex-weight" type="number" step="0.5" placeholder="0"><span class="weight-unit">lbs</span></div>
+        </div>
+        <div id="t-ex-lift-fields">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Sets</label><input class="form-input" id="t-ex-sets" type="number" min="1" value="3"></div>
+            <div class="form-group"><label class="form-label">Reps</label><input class="form-input" id="t-ex-reps" type="number" min="1" value="10"></div>
+          </div>
+          <div class="form-group">
+            <div style="display:flex;align-items:center;gap:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+              <div style="flex:1;font-size:14px;font-weight:600;">Bodyweight</div>
+              <label class="toggle-switch"><input type="checkbox" id="t-ex-bw" onchange="document.getElementById('t-ex-wt-wrap').style.display=this.checked?'none':'block'"><span class="toggle-slider"></span></label>
+            </div>
+            <div id="t-ex-wt-wrap">
+              <div class="weight-input-wrap"><input class="form-input" id="t-ex-weight" type="number" step="0.5" placeholder="0"><span class="weight-unit">lbs</span></div>
+            </div>
+          </div>
+        </div>
+        <div id="t-ex-cardio-fields" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">Cardio Type</label>
+            <div class="checkbox-group" style="flex-wrap:wrap;">
+              ${['Cycling','Elliptical','Running','Other'].map(t => `<div class="checkbox-option" data-tctype="${t}" onclick="W.Track._setCardioType(this)">${t}</div>`).join('')}
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Duration (min)</label><input class="form-input" id="t-ex-duration" type="number" min="1" placeholder="30"></div>
+            <div class="form-group"><label class="form-label">Intensity</label><input class="form-input" id="t-ex-intensity" placeholder="e.g., Level 8"></div>
           </div>
         </div>
         <div class="form-actions">
@@ -1415,12 +1550,22 @@ const W = {
       const setLogs = W._setLogs.filter(s => s.workoutLogId === log.id);
       const maxOrder = setLogs.length ? Math.max(...setLogs.map(s => s.exerciseOrder)) + 1 : 0;
       try {
-        for (let s = 1; s <= (src.sets || 1); s++) {
+        if (src.exerciseType === 'cardio') {
           await W.DB.saveSetLog({
             workoutLogId: log.id, exerciseId: src.id, exerciseName: src.name,
-            exerciseOrder: maxOrder, setNumber: s, weight: null,
-            isBodyweight: src.isBodyweight, reps: null, notes: null
+            exerciseOrder: maxOrder, setNumber: 1, weight: null,
+            isBodyweight: false, reps: null, notes: null,
+            exerciseType: 'cardio', duration: null, intensity: null
           });
+        } else {
+          for (let s = 1; s <= (src.sets || 1); s++) {
+            await W.DB.saveSetLog({
+              workoutLogId: log.id, exerciseId: src.id, exerciseName: src.name,
+              exerciseOrder: maxOrder, setNumber: s, weight: null,
+              isBodyweight: src.isBodyweight, reps: null, notes: null,
+              exerciseType: 'lift', duration: null, intensity: null
+            });
+          }
         }
         W.closeModal();
         await W.refresh();
@@ -1428,22 +1573,45 @@ const W = {
       } catch (e) { alert('Failed to add exercise.'); }
     },
 
+    _setExType(type) {
+      document.getElementById('t-ex-type-lift').classList.toggle('selected', type === 'lift');
+      document.getElementById('t-ex-type-cardio').classList.toggle('selected', type === 'cardio');
+      document.getElementById('t-ex-lift-fields').style.display = type === 'lift' ? 'block' : 'none';
+      document.getElementById('t-ex-cardio-fields').style.display = type === 'cardio' ? 'block' : 'none';
+    },
+
+    _setCardioType(el) {
+      document.querySelectorAll('[data-tctype]').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    },
+
     async _addNewExercise() {
       const name = document.getElementById('t-ex-name').value.trim();
       if (!name) { alert('Enter exercise name.'); return; }
-      const sets = parseInt(document.getElementById('t-ex-sets').value) || 3;
-      const isBw = document.getElementById('t-ex-bw').checked;
+      const isCardio = document.getElementById('t-ex-type-cardio').classList.contains('selected');
 
       const log = W._logs.find(l => l.id === W.currentLogId);
       const setLogs = W._setLogs.filter(s => s.workoutLogId === log.id);
       const maxOrder = setLogs.length ? Math.max(...setLogs.map(s => s.exerciseOrder)) + 1 : 0;
       try {
-        for (let s = 1; s <= sets; s++) {
+        if (isCardio) {
           await W.DB.saveSetLog({
             workoutLogId: log.id, exerciseId: null, exerciseName: name,
-            exerciseOrder: maxOrder, setNumber: s, weight: null,
-            isBodyweight: isBw, reps: null, notes: null
+            exerciseOrder: maxOrder, setNumber: 1, weight: null,
+            isBodyweight: false, reps: null, notes: null,
+            exerciseType: 'cardio', duration: null, intensity: null
           });
+        } else {
+          const sets = parseInt(document.getElementById('t-ex-sets').value) || 3;
+          const isBw = document.getElementById('t-ex-bw').checked;
+          for (let s = 1; s <= sets; s++) {
+            await W.DB.saveSetLog({
+              workoutLogId: log.id, exerciseId: null, exerciseName: name,
+              exerciseOrder: maxOrder, setNumber: s, weight: null,
+              isBodyweight: isBw, reps: null, notes: null,
+              exerciseType: 'lift', duration: null, intensity: null
+            });
+          }
         }
         W.closeModal();
         await W.refresh();

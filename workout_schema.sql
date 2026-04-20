@@ -82,3 +82,13 @@ ALTER TABLE workouts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_exercises DISABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE set_logs DISABLE ROW LEVEL SECURITY;
+
+-- Cardio support (run once in Supabase SQL editor)
+ALTER TABLE workout_exercises ADD COLUMN IF NOT EXISTS exercise_type TEXT DEFAULT 'lift';
+ALTER TABLE workout_exercises ADD COLUMN IF NOT EXISTS cardio_type TEXT;
+ALTER TABLE workout_exercises ADD COLUMN IF NOT EXISTS duration INTEGER;
+ALTER TABLE workout_exercises ADD COLUMN IF NOT EXISTS intensity TEXT;
+
+ALTER TABLE set_logs ADD COLUMN IF NOT EXISTS exercise_type TEXT DEFAULT 'lift';
+ALTER TABLE set_logs ADD COLUMN IF NOT EXISTS duration INTEGER;
+ALTER TABLE set_logs ADD COLUMN IF NOT EXISTS intensity TEXT;
