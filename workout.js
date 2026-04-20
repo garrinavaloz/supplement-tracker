@@ -319,8 +319,8 @@ const W = {
 
       if (!workouts.length) {
         html += `<div class="empty-state" style="padding:16px 0;">
-          <p style="font-size:13px;margin-bottom:12px;">No workouts set up for this day.</p>
-          <button class="btn btn-secondary btn-sm" onclick="W.DayDetail.openFromToday('${day.id}')">Set up workouts</button>
+          <p style="font-size:13px;margin-bottom:12px;">No exercises set up for this day.</p>
+          <button class="btn btn-secondary btn-sm" onclick="W.DayWorkout.open('${day.id}')">Set up exercises</button>
         </div>`;
       } else {
         for (const w of workouts) {
@@ -657,14 +657,17 @@ const W = {
       } else {
         html += `<div class="fitness-section-label">SPLIT DAYS</div>`;
         for (const d of days) {
-          const workouts = W.workoutsForDay(d.id);
+          const workout = W._workouts.find(w => w.splitDayId === d.id);
+          const exCount = workout ? W.exercisesForWorkout(workout.id).length : 0;
+          const muscleBadges = workout ? (workout.muscleGroups||[]).slice(0,3).map(m => `<span class="w-muscle-chip">${W.escape(m)}</span>`).join('') : '';
           const wLabel = split.scheduleType === 'days_of_week' ? W.DAY_LABELS[d.dayKey] : `Day ${d.orderIndex + 1}`;
-          html += `<div class="card" onclick="W.DayDetail.show('${d.id}')" style="cursor:pointer;">
+          html += `<div class="card" onclick="${d.isRest ? '' : `W.DayWorkout.open('${d.id}')`}" style="${d.isRest ? '' : 'cursor:pointer;'}">
             <div class="card-header">
               <span class="card-title">${W.escape(d.name)}</span>
-              ${d.isRest ? `<span class="card-badge" style="background:rgba(100,116,139,0.15);color:var(--text-muted);">Rest</span>` : `<span class="card-badge badge-blue">${workouts.length} workout${workouts.length===1?'':'s'}</span>`}
+              ${d.isRest ? `<span class="card-badge" style="background:rgba(100,116,139,0.15);color:var(--text-muted);">Rest</span>` : `<span class="card-badge badge-blue">${exCount} exercise${exCount===1?'':'s'}</span>`}
             </div>
             <div class="card-subtitle">${wLabel}</div>
+            ${muscleBadges ? `<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">${muscleBadges}</div>` : ''}
           </div>`;
         }
       }
@@ -732,6 +735,29 @@ const W = {
 
       html += `</div>`;
       el.innerHTML = html;
+    }
+  },
+
+  // ===== DAY → WORKOUT BRIDGE =====
+  DayWorkout: {
+    async open(dayId) {
+      const day = W._days.find(d => d.id === dayId);
+      if (!day) return;
+      W.currentDayId = dayId;
+      W.currentSplitId = day.splitId;
+      let workout = W._workouts.find(w => w.splitDayId === dayId);
+      if (!workout) {
+        const id = W.id();
+        await W.DB.saveWorkout({
+          id, splitDayId: dayId, name: day.name,
+          muscleGroups: [], timeOfDay: null, notes: null,
+          orderIndex: 0, isTemplate: false
+        });
+        await W.refresh();
+        workout = W._workouts.find(w => w.id === id);
+      }
+      W.currentWorkoutId = workout.id;
+      W.switchView('workoutDetail');
     }
   },
 
@@ -821,8 +847,7 @@ const W = {
 
         W.closeModal();
         await W.refresh();
-        if (editId) W.switchView('workoutDetail');
-        else W.switchView('dayDetail');
+        W.switchView('workoutDetail');
       } catch (e) { alert('Failed to save workout.'); }
     },
 
@@ -853,8 +878,9 @@ const W = {
       await W.DB.deleteWorkout(id);
       W.closeModal();
       await W.refresh();
-      W.currentDayId = splitDayId;
-      W.switchView('dayDetail');
+      const day = W._days.find(d => d.id === splitDayId);
+      if (day) W.currentSplitId = day.splitId;
+      W.switchView('splitDetail');
     },
 
     openTemplatePicker(splitDayId) {
@@ -908,7 +934,8 @@ const W = {
         }
         W.closeModal();
         await W.refresh();
-        W.switchView('dayDetail');
+        W.currentWorkoutId = newWorkoutId;
+        W.switchView('workoutDetail');
       } catch (e) { alert('Failed to copy template.'); }
     }
   },
@@ -918,21 +945,35 @@ const W = {
     show(workoutId) {
       W.currentWorkoutId = workoutId;
       const w = W._workouts.find(x => x.id === workoutId);
-      if (w) W.currentDayId = w.splitDayId;
+      if (w) {
+        W.currentDayId = w.splitDayId;
+        const day = W._days.find(d => d.id === w.splitDayId);
+        if (day) W.currentSplitId = day.splitId;
+      }
       W.switchView('workoutDetail');
+    },
+    goBack() {
+      const workout = W._workouts.find(w => w.id === W.currentWorkoutId);
+      if (workout) {
+        const day = W._days.find(d => d.id === workout.splitDayId);
+        if (day) W.currentSplitId = day.splitId;
+      }
+      W.switchView('splitDetail');
     },
     render() {
       const el = document.getElementById('view-wt-content');
       const workout = W._workouts.find(w => w.id === W.currentWorkoutId);
       if (!workout) { W.switchView('splits'); return; }
       const exs = W.exercisesForWorkout(workout.id);
+      const day = W._days.find(d => d.id === workout.splitDayId);
+      const split = day ? W._splits.find(s => s.id === day.splitId) : null;
       const muscleBadges = (workout.muscleGroups||[]).map(m => `<span class="w-muscle-chip">${W.escape(m)}</span>`).join('');
 
       let html = `<div style="padding:16px 20px;">
-        <button class="btn-back" onclick="W.switchView('dayDetail')">&#8249; Back</button>
+        <button class="btn-back" onclick="W.WorkoutDetail.goBack()">&#8249; Back</button>
         <div style="margin-bottom:12px;">
           <h2 style="font-size:22px;font-weight:700;">${W.escape(workout.name)}</h2>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${workout.timeOfDay ? W.escape(workout.timeOfDay) + ' · ' : ''}${exs.length} exercise${exs.length===1?'':'s'}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${split ? W.escape(split.name) + ' · ' : ''}${workout.timeOfDay ? W.escape(workout.timeOfDay) + ' · ' : ''}${exs.length} exercise${exs.length===1?'':'s'}</div>
           ${muscleBadges ? `<div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">${muscleBadges}</div>` : ''}
           ${workout.notes ? `<p style="font-size:13px;color:var(--text-secondary);margin-top:10px;">${W.escape(workout.notes)}</p>` : ''}
         </div>
