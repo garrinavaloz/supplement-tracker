@@ -1,8 +1,3 @@
-// ===== SUPABASE SETUP =====
-const SUPABASE_URL = 'https://elcyebukretkvlwiutcd.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3llYnVrcmV0a3Zsd2l1dGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5MjIsImV4cCI6MjA5MDk4NzkyMn0.upensdcqZOeK2-TXDc-SvIqXFhpXSNv-QsToBe5bS88';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 // ===== DATA LAYER =====
 const DB = {
   // -- Supplements --
@@ -1185,4 +1180,4 @@ const App = {
 };
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => Auth.guard().then(() => App.init()));

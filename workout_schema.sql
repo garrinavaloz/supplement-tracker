@@ -76,12 +76,8 @@ CREATE TABLE IF NOT EXISTS set_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE workout_splits DISABLE ROW LEVEL SECURITY;
-ALTER TABLE split_days DISABLE ROW LEVEL SECURITY;
-ALTER TABLE workouts DISABLE ROW LEVEL SECURITY;
-ALTER TABLE workout_exercises DISABLE ROW LEVEL SECURITY;
-ALTER TABLE workout_logs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE set_logs DISABLE ROW LEVEL SECURITY;
+-- Row Level Security is enabled separately via enable_rls.sql, which covers
+-- these tables plus every other table in the app (supplements, contacts, etc).
 
 -- Cardio support (run once in Supabase SQL editor)
 ALTER TABLE workout_exercises ADD COLUMN IF NOT EXISTS exercise_type TEXT DEFAULT 'lift';

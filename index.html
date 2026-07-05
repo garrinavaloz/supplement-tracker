@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
 </head>
 <body>
   <div id="app">
@@ -28,6 +29,7 @@
     <header id="app-header" style="display:none;">
       <h1 class="logo">SupTrack</h1>
       <span class="header-date" id="header-date"></span>
+      <button onclick="Auth.signOut()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;padding:4px 8px;">Sign out</button>
     </header>
 
     <!-- Main content -->

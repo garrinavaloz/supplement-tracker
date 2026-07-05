@@ -1,8 +1,3 @@
-// ===== SUPABASE SETUP =====
-const SUPABASE_URL = 'https://elcyebukretkvlwiutcd.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3llYnVrcmV0a3Zsd2l1dGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5MjIsImV4cCI6MjA5MDk4NzkyMn0.upensdcqZOeK2-TXDc-SvIqXFhpXSNv-QsToBe5bS88';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 const DEFAULTS_KEY = 'weight_tracker_defaults';
 
 // ===== UTILITIES =====
@@ -728,7 +723,9 @@ async function init() {
   meal_context text not null,
   created_at timestamptz default now()
 );
-alter table weight_logs disable row level security;</pre>
+alter table weight_logs enable row level security;
+create policy "authenticated_full_access" on weight_logs
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');</pre>
         <p class="db-setup-error">Error: ${tableError.message}</p>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="location.reload()">
           Retry after running SQL
@@ -755,4 +752,4 @@ alter table weight_logs disable row level security;</pre>
   }
 }
 
-init();
+Auth.guard().then(init);

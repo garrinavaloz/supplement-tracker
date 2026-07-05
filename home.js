@@ -1,8 +1,3 @@
-// ===== SUPABASE SETUP =====
-const SUPABASE_URL = 'https://elcyebukretkvlwiutcd.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3llYnVrcmV0a3Zsd2l1dGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5MjIsImV4cCI6MjA5MDk4NzkyMn0.upensdcqZOeK2-TXDc-SvIqXFhpXSNv-QsToBe5bS88';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 // Flexible cycle window computation (mirrors reminders.js logic)
 function computeWindowHistory(reminder, rLogs) {
   if (!reminder.flexibleCycle || !reminder.cycleConfig) return [];
@@ -413,4 +408,4 @@ async function init() {
   document.getElementById('main-content').style.display = '';
 }
 
-init();
+Auth.guard().then(init);
