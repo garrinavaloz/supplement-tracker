@@ -609,10 +609,29 @@ const W = {
         sequentialAnchorDate: scheduleType === 'sequential' ? anchorDate : null
       };
 
+      // Warn before removing any day that still has workouts/exercises attached,
+      // since deleting a day cascades to delete its workouts and their exercises.
+      const keepIds = new Set(days.map(d => d.id));
+      const priorDays = editId ? W.daysForSplit(editId) : [];
+      const removedDays = priorDays.filter(pd => !keepIds.has(pd.id));
+      if (removedDays.length) {
+        const exCount = removedDays.reduce((sum, pd) =>
+          sum + W.workoutsForDay(pd.id).reduce((s, w) => s + W.exercisesForWorkout(w.id).length, 0), 0);
+        const workoutCount = removedDays.reduce((sum, pd) => sum + W.workoutsForDay(pd.id).length, 0);
+        if (workoutCount > 0 || exCount > 0) {
+          const names = removedDays.map(pd => pd.name).join(', ');
+          const ok = confirm(`Removing "${names}" will permanently delete ${workoutCount} workout(s) and ${exCount} exercise(s) saved on ${removedDays.length > 1 ? 'those days' : 'that day'}. Continue?`);
+          if (!ok) return;
+        }
+      }
+
       try {
         await W.DB.saveSplit(split);
-        // Delete old days and re-save (simpler than diffing)
-        await W.DB.deleteDaysForSplit(splitId);
+        // Only remove days the user actually deleted from this split. Days that
+        // persist keep their id so their workouts/exercises (FK cascade) survive.
+        for (const pd of removedDays) {
+          await W.DB.deleteDay(pd.id);
+        }
         for (const d of days) await W.DB.saveDay({ ...d, splitId });
         if (isActive) await W.DB.setActiveSplit(splitId);
         W.closeModal();
