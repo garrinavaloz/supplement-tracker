@@ -21,8 +21,11 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS "authenticated_full_access" ON %I', t);
+    -- RESTRICTIVE (not permissive): this is AND-ed with any other policy on the
+    -- table, so it closes access even if a leftover "allow all" policy exists
+    -- from when the table was first created via the dashboard.
     EXECUTE format(
-      'CREATE POLICY "authenticated_full_access" ON %I FOR ALL USING (auth.role() = ''authenticated'') WITH CHECK (auth.role() = ''authenticated'')',
+      'CREATE POLICY "authenticated_full_access" ON %I AS RESTRICTIVE FOR ALL USING (auth.role() = ''authenticated'') WITH CHECK (auth.role() = ''authenticated'')',
       t
     );
   END LOOP;
