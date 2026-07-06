@@ -8,7 +8,9 @@
 --   (check "Auto Confirm User" so there's no email verification step)
 
 DO $$
-DECLARE t text;
+DECLARE
+  t text;
+  pol record;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'supplements', 'daily_logs', 'weight_logs',
@@ -20,12 +22,18 @@ BEGIN
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('DROP POLICY IF EXISTS "authenticated_full_access" ON %I', t);
-    -- RESTRICTIVE (not permissive): this is AND-ed with any other policy on the
-    -- table, so it closes access even if a leftover "allow all" policy exists
-    -- from when the table was first created via the dashboard.
+
+    -- Drop every existing policy on this table, whatever it's named, so no
+    -- leftover default policy (e.g. from the dashboard's table editor) can
+    -- grant unrestricted access alongside the one below.
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON %I', pol.policyname, t);
+    END LOOP;
+
+    -- One permissive policy: any signed-in session gets full access.
     EXECUTE format(
-      'CREATE POLICY "authenticated_full_access" ON %I AS RESTRICTIVE FOR ALL USING (auth.role() = ''authenticated'') WITH CHECK (auth.role() = ''authenticated'')',
+      'CREATE POLICY "authenticated_full_access" ON %I FOR ALL USING (auth.role() = ''authenticated'') WITH CHECK (auth.role() = ''authenticated'')',
       t
     );
   END LOOP;
